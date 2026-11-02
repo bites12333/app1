@@ -1,0 +1,6 @@
+# No pip packages required. Python 3.10+ recommended.
+# Uses only Python standard library: tkinter, sqlite3, pathlib, datetime, contextlib.
+# Windows/macOS: use a Python distribution with Tcl/Tk support.
+# Linux: tkinter may need installation through your OS package manager (python3-tk).
+# Run locally: python app.py
+# No internet connection is needed during use.
