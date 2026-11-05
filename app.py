@@ -1,269 +1,222 @@
-"""우리의 하루 — 오프라인 커플 다이어리
-실행: python app.py (Python 3.10 이상, tkinter 필요)
-외부 패키지/인터넷/웹 서버 불필요. 같은 컴퓨터에서 역할을 바꿔 사용합니다.
-일기는 이 파일 옆 couple_diary_offline.sqlite3에 저장됩니다.
-DB 파일에 쓰기 권한이 있는 폴더에서 실행하세요. 별도의 로그인/암호화는 없습니다.
+"""농사 날씨 길잡이 — streamlit run app.py
+GitHub에 app.py / requirements.txt 업로드 후 Streamlit Community Cloud로 배포.
+인터넷 필요. API 키 불필요. Open-Meteo 무료 비상업 API의 이용 한도/약관 적용.
+장기 계절예보 모델이 아닌 최근 5개 완결 연도 기후 기반 시나리오 앱.
+작물 조건은 교육용 단순화 가정이며 지역별 재배 지침이나 수확량 예측이 아님.
 """
 from __future__ import annotations
 
-import sqlite3
-from contextlib import contextmanager
-from datetime import datetime
-from pathlib import Path
-import tkinter as tk
-from tkinter import messagebox, ttk
+import calendar
+from datetime import date, datetime, timedelta, timezone
 
-DB_PATH = Path(__file__).resolve().with_name("couple_diary_offline.sqlite3")
-ROLES = ("나비", "구름")
-MOODS = ("행복해", "좋아", "평온해", "피곤해", "속상해", "화가 나")
-BG = "#fff7fa"
-FG = "#44343c"
-ACCENT = "#bc4975"
+import pandas as pd
+import requests
+import streamlit as st
 
-
-@contextmanager
-def database():
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-
-def initialize():
-    with database() as conn:
-        conn.execute("""CREATE TABLE IF NOT EXISTS offline_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            author TEXT NOT NULL,
-            mood TEXT NOT NULL,
-            body TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            read_at TEXT
-        )""")
+st.set_page_config(page_title="농사 날씨 길잡이", page_icon="🌱", layout="centered")
+CITIES = {
+    "서울": (37.57, 126.98), "춘천": (37.88, 127.73),
+    "강릉": (37.75, 128.88), "수원": (37.26, 127.03),
+    "청주": (36.64, 127.49), "대전": (36.35, 127.38),
+    "전주": (35.82, 127.15), "광주": (35.16, 126.85),
+    "목포": (34.81, 126.39), "대구": (35.87, 128.60),
+    "안동": (36.57, 128.73), "부산": (35.18, 129.08),
+    "진주": (35.18, 128.11), "제주": (33.50, 126.53),
+}
+# 이름, 비교 기간(일), 적정 평균기온 하한/상한, 저온 위험 기준, 고온 위험 기준,
+# 주당 강수 비교범위 하한/상한(mm). 모두 교육용 가정이며 품종별 기준이 아님.
+CROPS = [
+    ("상추", 60, 15, 22, 3, 30, 15, 40),
+    ("시금치", 60, 10, 20, -3, 27, 10, 35),
+    ("무", 75, 15, 22, 0, 30, 15, 40),
+    ("배추", 90, 15, 22, 0, 30, 20, 45),
+    ("감자", 100, 15, 22, 0, 29, 15, 40),
+    ("옥수수", 100, 20, 28, 8, 35, 20, 45),
+    ("고구마", 120, 20, 28, 10, 35, 15, 40),
+    ("콩", 110, 20, 28, 8, 35, 15, 40),
+]
+DAILY = "temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum"
+COLS = DAILY.split(",")
 
 
-def get_entries():
-    with database() as conn:
-        return conn.execute("SELECT * FROM offline_entries ORDER BY id DESC").fetchall()
+def fetch_daily(url, params):
+    response = requests.get(url, params=params, timeout=(10, 70))
+    response.raise_for_status()
+    payload = response.json()
+    if payload.get("error"):
+        raise ValueError(payload.get("reason", "날씨 제공 서비스 오류"))
+    raw = payload.get("daily", {})
+    if not raw.get("time") or any(c not in raw for c in COLS):
+        raise ValueError("날씨 응답에 필요한 자료가 없습니다.")
+    frame = pd.DataFrame({"date": pd.to_datetime(raw["time"]), **{c: raw[c] for c in COLS}})
+    for col in COLS:
+        frame[col] = pd.to_numeric(frame[col], errors="coerce")
+    return frame
 
 
-def save_entry(author, mood, body):
-    if author not in ROLES or mood not in MOODS:
-        raise ValueError("올바른 역할과 기분을 선택하세요.")
-    body = body.strip()
-    if not body or len(body) > 1000:
-        raise ValueError("일기를 1~1,000자로 작성하세요.")
-    with database() as conn:
-        conn.execute(
-            "INSERT INTO offline_entries(author, mood, body, created_at) VALUES (?, ?, ?, ?)",
-            (author, mood, body, datetime.now().strftime("%Y-%m-%d %H:%M")),
-        )
+@st.cache_data(ttl=86400, show_spinner=False)
+def historical(lat, lon, year):
+    frame = fetch_daily("https://archive-api.open-meteo.com/v1/archive", {
+        "latitude": lat, "longitude": lon,
+        "start_date": f"{year-5}-01-01", "end_date": f"{year-1}-12-31",
+        "daily": DAILY, "timezone": "Asia/Seoul",
+    })
+    valid = frame.dropna(subset=COLS).copy()
+    if len(valid) < len(frame) * .95 or len(valid) < 1700:
+        raise ValueError("최근 5년 자료가 충분하지 않아 비교할 수 없습니다.")
+    valid["monthday"] = valid["date"].dt.strftime("%m-%d")
+    grouped = valid.groupby("monthday")[COLS]
+    return grouped.mean(), grouped.count().min(axis=1)
 
 
-def mark_read(entry_id, reader):
-    if reader not in ROLES:
-        raise ValueError("올바른 역할을 선택하세요.")
-    with database() as conn:
-        conn.execute(
-            "UPDATE offline_entries SET read_at = ? WHERE id = ? AND author != ? AND read_at IS NULL",
-            (datetime.now().strftime("%Y-%m-%d %H:%M"), entry_id, reader),
-        )
+@st.cache_data(ttl=3600, show_spinner=False)
+def forecast(lat, lon, today_string):
+    return fetch_daily("https://api.open-meteo.com/v1/forecast", {
+        "latitude": lat, "longitude": lon, "daily": DAILY,
+        "timezone": "Asia/Seoul", "forecast_days": 16,
+    }).dropna(subset=COLS)
 
 
-class DiaryApp:
-    def __init__(self, root):
-        self.root = root
-        root.title("우리의 하루 · 오프라인")
-        root.geometry("410x630")
-        root.minsize(360, 570)
-        root.configure(bg=BG)
-        self.entries = []
-        self.role = tk.StringVar(value=ROLES[0])
-        self.mood = tk.StringVar(value=MOODS[0])
-        self.read_var = tk.BooleanVar(value=False)
-        self.status = tk.StringVar(value="인터넷 없이, 이 컴퓨터에 자동 저장돼요.")
-        self.read_status = tk.StringVar(value="첫 번째 일기를 남겨 주세요.")
-        self.counter = tk.StringVar(value="0 / 1,000자")
-        style = ttk.Style(root)
-        style.theme_use("clam")
-        style.configure("TFrame", background=BG)
-        style.configure("TLabel", background=BG, foreground=FG, font=("맑은 고딕", 10))
-        style.configure("Title.TLabel", font=("맑은 고딕", 20, "bold"), foreground=ACCENT)
-        style.configure("Note.TLabel", foreground="#806776", font=("맑은 고딕", 9))
-        style.configure("TButton", font=("맑은 고딕", 10), padding=5)
-        style.configure("Accent.TButton", background=ACCENT, foreground="white")
-        style.map("Accent.TButton", background=[("active", "#a83c66")])
-        style.configure("TCombobox", fieldbackground="white", background="#f5e5ed", foreground=FG, padding=4)
-        style.map("TCombobox", fieldbackground=[("readonly", "white")],
-                  foreground=[("readonly", FG)], selectbackground=[("readonly", "white")],
-                  selectforeground=[("readonly", FG)])
-        style.configure("TCheckbutton", background=BG, foreground=FG, font=("맑은 고딕", 10))
-        root.option_add("*TCombobox*Listbox.background", "white")
-        root.option_add("*TCombobox*Listbox.foreground", FG)
-
-        panel = ttk.Frame(root, padding=14)
-        panel.pack(fill="both", expand=True)
-        panel.columnconfigure(0, weight=1)
-        panel.rowconfigure(6, weight=1)
-        panel.rowconfigure(11, weight=1)
-        ttk.Label(panel, text="우리의 하루", style="Title.TLabel").grid(row=0, sticky="w")
-        ttk.Label(panel, text="마음을 남기고, 읽었다는 마음도 전해요.", style="Note.TLabel").grid(row=1, sticky="w", pady=(0, 8))
-
-        identity = ttk.Frame(panel)
-        identity.grid(row=2, sticky="ew")
-        identity.columnconfigure(1, weight=1)
-        ttk.Label(identity, text="지금 쓰는 사람").grid(row=0, column=0, padx=(0, 10))
-        self.role_box = ttk.Combobox(identity, textvariable=self.role, values=ROLES, state="readonly", width=12)
-        self.role_box.grid(row=0, column=1, sticky="ew")
-        self.role_box.bind("<<ComboboxSelected>>", self.change_role)
-        self.last_role = self.role.get()
-        ttk.Separator(panel).grid(row=3, sticky="ew", pady=9)
-        ttk.Label(panel, text="오늘의 기분").grid(row=4, sticky="w")
-        ttk.Combobox(panel, textvariable=self.mood, values=MOODS, state="readonly").grid(row=5, sticky="ew", pady=(3, 5))
-
-        self.editor = self.text_box(panel, 6, 4)
-        self.editor.bind("<<Modified>>", self.update_count)
-        actions = ttk.Frame(panel)
-        actions.grid(row=7, sticky="ew", pady=5)
-        actions.columnconfigure(0, weight=1)
-        ttk.Label(actions, textvariable=self.counter, style="Note.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Button(actions, text="일기 남기기", style="Accent.TButton", command=self.save).grid(row=0, column=1)
-        ttk.Label(panel, textvariable=self.status, style="Note.TLabel", wraplength=330).grid(row=8, sticky="w", pady=(0, 8))
-
-        shared = ttk.Frame(panel)
-        shared.grid(row=9, sticky="ew")
-        shared.columnconfigure(0, weight=1)
-        ttk.Label(shared, text="함께 쓴 일기").grid(row=0, column=0, sticky="w")
-        ttk.Button(shared, text="새로고침", command=self.refresh).grid(row=0, column=1)
-        self.entry_box = ttk.Combobox(panel, state="readonly", font=("맑은 고딕", 9))
-        self.entry_box.grid(row=10, sticky="ew", pady=5)
-        self.entry_box.bind("<<ComboboxSelected>>", self.display_entry)
-        self.viewer = self.text_box(panel, 11, 4)
-        self.viewer.configure(state="disabled")
-        self.read_check = ttk.Checkbutton(panel, text="확인했어요", variable=self.read_var, command=self.acknowledge)
-        self.read_check.grid(row=12, sticky="w", pady=(6, 2))
-        ttk.Label(panel, textvariable=self.read_status, style="Note.TLabel", wraplength=330).grid(row=13, sticky="w")
-        ttk.Label(panel, text="오프라인 · 같은 컴퓨터에서 역할을 바꿔 사용", style="Note.TLabel").grid(row=14, sticky="w", pady=(8, 0))
-        self.refresh()
-
-    def text_box(self, parent, row, height):
-        frame = ttk.Frame(parent)
-        frame.grid(row=row, sticky="nsew")
-        widget = tk.Text(frame, height=height, width=24, wrap="word", font=("맑은 고딕", 11),
-                         bg="white", fg=FG, insertbackground=FG, relief="solid", borderwidth=1,
-                         padx=8, pady=6, undo=True, highlightthickness=0)
-        scroll = ttk.Scrollbar(frame, command=widget.yview)
-        widget.configure(yscrollcommand=scroll.set)
-        scroll.pack(side="right", fill="y")
-        widget.pack(side="left", fill="both", expand=True)
-        return widget
-
-    def update_count(self, _event=None):
-        if self.editor.edit_modified():
-            self.counter.set(f"{len(self.editor.get('1.0', 'end-1c'))} / 1,000자")
-            self.editor.edit_modified(False)
-
-    def change_role(self, _event=None):
-        # 이전 사람의 미작성 내용이 다른 사람의 이름으로 저장되는 것을 방지합니다.
-        if self.editor.get("1.0", "end-1c").strip():
-            if not messagebox.askyesno("역할 바꾸기", "아직 저장하지 않은 글이 있어요. 글을 지우고 역할을 바꿀까요?", parent=self.root):
-                self.role.set(self.last_role)
-                return
-        self.editor.delete("1.0", "end")
-        self.editor.edit_reset()
-        self.mood.set(MOODS[0])
-        self.last_role = self.role.get()
-        self.status.set(f"지금은 {self.role.get()}의 차례예요.")
-        self.display_entry()
-
-    def save(self):
-        try:
-            save_entry(self.role.get(), self.mood.get(), self.editor.get("1.0", "end-1c"))
-        except ValueError as exc:
-            messagebox.showinfo("작성 확인", str(exc), parent=self.root)
-            return
-        except sqlite3.Error as exc:
-            self.show_error(exc)
-            return
-        self.editor.delete("1.0", "end")
-        self.editor.edit_reset()
-        self.status.set("일기를 저장했어요. 상대 역할로 바꿔 확인해 보세요.")
-        self.refresh(select_newest=True)
-
-    def refresh(self, select_newest=False):
-        old = self.selected_entry()
-        try:
-            entries = get_entries()
-        except sqlite3.Error as exc:
-            self.show_error(exc)
-            return
-        self.entries = entries
-        labels = [f"{e['created_at'][5:]} · {e['author']} · {e['mood']} · {'읽음' if e['read_at'] else '미확인'}" for e in entries]
-        self.entry_box.configure(values=labels)
-        if entries:
-            index = 0
-            if old is not None and not select_newest:
-                index = next((i for i, e in enumerate(entries) if e['id'] == old['id']), 0)
-            self.entry_box.current(index)
+def build_outlook(normal, counts, short, start, days, adjustment):
+    rows = []
+    lookup = {r['date'].date(): r for _, r in short.iterrows()}
+    for i in range(days):
+        day = start + timedelta(days=i)
+        key = day.strftime("%m-%d")
+        if key == "02-29":
+            baseline = (normal.loc["02-28"] + normal.loc["03-01"]) / 2
         else:
-            self.entry_box.set("")
-        self.display_entry()
-
-    def selected_entry(self):
-        index = self.entry_box.current()
-        return self.entries[index] if 0 <= index < len(self.entries) else None
-
-    def display_entry(self, _event=None):
-        entry = self.selected_entry()
-        self.viewer.configure(state="normal")
-        self.viewer.delete("1.0", "end")
-        self.viewer.insert("1.0", entry['body'] if entry else "아직 일기가 없어요. 위에서 첫 일기를 남겨 주세요.")
-        self.viewer.configure(state="disabled")
-        self.read_var.set(bool(entry and entry['read_at']))
-        enabled = bool(entry and entry['author'] != self.role.get() and not entry['read_at'])
-        self.read_check.configure(state="normal" if enabled else "disabled")
-        if not entry:
-            self.read_status.set("첫 번째 일기를 남겨 주세요.")
-        elif entry['read_at']:
-            reader = ROLES[1] if entry['author'] == ROLES[0] else ROLES[0]
-            self.read_status.set(f"{reader} 확인 완료 · {entry['read_at']}")
-        elif entry['author'] == self.role.get():
-            self.read_status.set("상대가 아직 확인하지 않았어요.")
+            if key not in normal.index or counts.loc[key] < 4:
+                raise ValueError("해당 날짜의 과거 자료가 부족합니다.")
+            baseline = normal.loc[key]
+        if day in lookup:
+            values = lookup[day]
+            source = "단기 예보"
         else:
-            self.read_status.set("읽었다면 ‘확인했어요’를 체크해 주세요.")
-
-    def acknowledge(self):
-        entry = self.selected_entry()
-        if entry is None:
-            return
-        try:
-            mark_read(entry['id'], self.role.get())
-        except (sqlite3.Error, ValueError) as exc:
-            self.show_error(exc)
-        self.refresh()
-
-    def show_error(self, exc):
-        messagebox.showerror("저장소 오류", f"파일을 읽거나 저장하지 못했어요.\n쓰기 가능한 폴더인지 확인해 주세요.\n\n{exc}", parent=self.root)
+            values = baseline.copy()
+            for col in COLS[:3]:
+                values[col] += adjustment
+            source = "과거 기후 기반 추정"
+        rows.append({"날짜": day, **{c: float(values[c]) for c in COLS}, "자료": source})
+    return pd.DataFrame(rows)
 
 
-def main():
-    root = tk.Tk()
-    root.withdraw()
+def score_crop(crop, outlook):
+    name, days, lo, hi, cold, hot, rain_lo, rain_hi = crop
+    frame = outlook.iloc[:days]
+    t = frame[COLS[0]]
+    # 점수는 확률/수확량이 아니라 명시적인 교육용 비교 지수입니다.
+    deviation = (lo-t).clip(lower=0) + (t-hi).clip(lower=0)
+    temp_fit = float((100-deviation*7).clip(lower=0).mean())
+    cold_fraction = float((frame[COLS[1]] < cold).mean())
+    hot_fraction = float((frame[COLS[2]] > hot).mean())
+    weekly_rain = float(frame[COLS[3]].mean()*7)
+    rain_gap = max(rain_lo-weekly_rain, 0, weekly_rain-rain_hi)
+    rain_fit = max(0, 100-rain_gap*2)
+    score = max(0, min(100, .8*temp_fit + .2*rain_fit - 25*cold_fraction - 20*hot_fraction))
+    reasons = []
+    if temp_fit >= 80:
+        reasons.append("평균기온이 설정한 생육 조건에 비교적 잘 맞습니다")
+    else:
+        reasons.append("평균기온이 설정한 생육 조건에서 벗어나는 기간이 있습니다")
+    if cold_fraction >= .1:
+        reasons.append("저온 주의 기준보다 낮은 날이 많아 보온 관리가 필요합니다")
+    if hot_fraction >= .1:
+        reasons.append("고온 주의 기준보다 높은 날이 많아 더위 관리가 필요합니다")
+    if weekly_rain < rain_lo:
+        reasons.append("비가 적을 수 있어 물주기 계획이 필요합니다")
+    elif weekly_rain > rain_hi:
+        reasons.append("비가 많을 수 있어 배수 관리가 필요합니다")
+    else:
+        reasons.append("주당 강수량 평균이 설정한 비교 범위 안에 있습니다")
+    return {"작물": name, "적합도": round(score, 1), "비교 기간": days,
+            "평균기온": round(float(t.mean()), 1), "주당 강수량": round(weekly_rain, 1),
+            "예보 일수": int((frame['자료'] == '단기 예보').sum()), "이유": reasons}
+
+
+st.markdown("""<style>
+html, body, [class*='css'] {font-size:18px;}
+.block-container {max-width:760px; padding-top:1.5rem;}
+h1 {font-size:2rem!important;} h2 {font-size:1.5rem!important;}
+label, [data-testid='stWidgetLabel'] p {font-size:1.15rem!important;}
+.stButton button {min-height:56px;font-size:1.2rem;border-radius:12px;}
+[data-testid='stMetricValue'] {font-size:1.8rem;}
+</style>""", unsafe_allow_html=True)
+st.title("🌱 농사 날씨 길잡이")
+st.write("**어디에, 언제 심으시나요?** 기온과 비를 살펴 작물을 비교해 드립니다.")
+st.info("몇 달 뒤의 실제 날씨를 맞히는 앱은 아닙니다. 가까운 날은 예보, 먼 날은 최근 5년 기후를 바탕으로 비교합니다.")
+today = datetime.now(timezone(timedelta(hours=9))).date()
+months = []
+for offset in range(7):
+    year = today.year + (today.month-1+offset)//12
+    month = (today.month-1+offset)%12+1
+    months.append(date(year, month, 1))
+with st.form("settings"):
+    city = st.selectbox("① 농사지을 지역", list(CITIES), index=6)
+    selected_month = st.selectbox("② 심을 달", months, format_func=lambda d: f"{d.year}년 {d.month}월")
+    st.caption("이번 달은 오늘부터, 다음 달 이후는 해당 월 1일부터 비교합니다.")
+    scenario = st.radio("③ 앞으로의 기온 가정", ["최근 5년과 비슷", "조금 더 따뜻함 (+2℃)", "조금 더 서늘함 (-2℃)"], horizontal=False)
+    run = st.form_submit_button("심을 작물 알아보기", type="primary", use_container_width=True)
+
+if run:
+    st.session_state.pop("analysis", None)
+    start = max(today, selected_month)
+    adjustment = {"최근 5년과 비슷": 0, "조금 더 따뜻함 (+2℃)": 2, "조금 더 서늘함 (-2℃)": -2}[scenario]
+    lat, lon = CITIES[city]
     try:
-        initialize()
-    except (sqlite3.Error, OSError) as exc:
-        messagebox.showerror("시작 실패", f"저장소를 만들지 못했어요.\napp.py를 쓰기 가능한 폴더로 옮겨 주세요.\n\n{exc}", parent=root)
-        root.destroy()
-        return
-    DiaryApp(root)
-    root.deiconify()
-    root.mainloop()
+        with st.spinner("기온과 비 자료를 확인하고 있습니다. 처음에는 잠시 걸릴 수 있어요."):
+            normal, counts = historical(lat, lon, today.year)
+            short = pd.DataFrame(columns=["date", *COLS])
+            note = ""
+            if start <= today+timedelta(days=15):
+                try:
+                    short = forecast(lat, lon, today.isoformat())
+                except (requests.RequestException, ValueError, KeyError, TypeError):
+                    note = "단기 예보를 가져오지 못해 전 기간을 과거 기후 기반으로 비교했습니다."
+            outlook = build_outlook(normal, counts, short, start, 120, adjustment)
+            results = sorted([score_crop(c, outlook) for c in CROPS], key=lambda r: r['적합도'], reverse=True)
+            st.session_state['analysis'] = (city, start, scenario, results, outlook, note, today.year)
+    except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+        st.error("날씨 자료를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주세요. 임의의 날씨로 대체하지 않습니다.")
+        with st.expander("오류 내용 보기"):
+            st.code(str(exc))
 
+if 'analysis' in st.session_state:
+    city, start, scenario, results, outlook, note, year = st.session_state['analysis']
+    st.divider()
+    st.subheader(f"{city} · {start.year}년 {start.month}월 {start.day}일 심기")
+    st.caption(f"기온 가정: {scenario} | 과거 자료: {year-5}~{year-1}년 | 노지 재배 가정")
+    if note:
+        st.warning(note)
+    st.warning("점수는 아래 8개 작물 사이의 교육용 비교 지수입니다. 수확 성공 확률이나 실제 수익이 아니며, 최고 점수가 낮으면 추천 작물도 적합하지 않을 수 있습니다.")
+    for heading, item in [("✅ 가장 유리한 작물", results[0]), ("⚠️ 가장 불리한 작물", results[-1])]:
+        with st.container(border=True):
+            st.subheader(f"{heading}: {item['작물']}")
+            st.write(f"**비교 점수 {item['적합도']:.1f} / 100 · 생육 비교 {item['비교 기간']}일**")
+            st.write(f"기간 평균 {item['평균기온']}℃ · 주당 평균 강수 {item['주당 강수량']}mm")
+            for reason in item['이유']:
+                st.write(f"• {reason}")
+            st.caption(f"단기 예보 {item['예보 일수']}일 / 기후 기반 추정 {item['비교 기간']-item['예보 일수']}일")
+    if results[0]['적합도'] < 60:
+        st.error("이번 조건에서는 최고 점수도 낮습니다. 심는 시기를 바꾸거나 지역 농업기술센터에 확인하세요.")
+    if results[0]['적합도'] == results[-1]['적합도']:
+        st.info("모든 작물의 점수가 같습니다. 순위만으로 작물을 선택하지 마세요.")
+    with st.expander("전체 작물 비교 보기"):
+        table = pd.DataFrame([{"작물": r['작물'], "점수(100점)": r['적합도'], "비교 기간(일)": r['비교 기간'], "평균기온(℃)": r['평균기온'], "주당 강수(mm)": r['주당 강수량']} for r in results])
+        st.dataframe(table, hide_index=True, use_container_width=True)
+        st.caption("작물별 일반적인 생육 기간을 단순화해 서로 다른 기간을 비교합니다. 동점은 우열이 없습니다.")
+    with st.expander("월별 기온과 비 보기"):
+        tmp = outlook.copy()
+        tmp['월'] = pd.to_datetime(tmp['날짜']).dt.strftime('%Y년 %m월')
+        monthly = tmp.groupby('월').agg(평균기온=(COLS[0], 'mean'), 기간강수량=(COLS[3], 'sum'), 비교일수=('날짜', 'count'))
+        st.dataframe(monthly.round(1).rename(columns={'평균기온': '평균기온(℃)', '기간강수량': '해당 기간 강수량(mm)', '비교일수': '비교 일수'}), use_container_width=True)
+        st.caption("첫 달과 마지막 달은 일부 날짜만 포함합니다. 장기 값은 예보가 아니라 과거 기후 기반 추정입니다.")
 
-if __name__ == "__main__":
-    main()
+with st.expander("계산 방법과 꼭 알아둘 점"):
+    st.write("최근 5개 완결 연도의 같은 월·일 기온과 강수량을 평균합니다. 단기 예보가 있는 날짜는 그 예보를 사용하고, 나머지는 과거 평균을 사용합니다. ±2℃ 선택은 장기 추정값에만 적용하는 사용자의 가정이며 공식 기후 전망이 아닙니다.")
+    st.write("점수 = 기온 적합도 80% + 강수 적합도 20% − 저온·고온 주의일 비중에 따른 감점. 기온은 적정 범위에서 1℃ 벗어날 때 7점, 주당 강수는 비교 범위에서 1mm 벗어날 때 2점 감점합니다. 저온·고온 감점 계수는 각각 25와 20이며 최종 점수는 0~100점입니다.")
+    st.write("아래 기준은 앱 작동을 설명하기 위한 교육용 가정입니다. 공식 재배 권장 기준으로 검증되지 않았습니다. 파종·정식 구분, 품종, 토양, 일조, 시설, 관수, 병해충, 생육 단계는 반영하지 않았습니다. 과거 평균 최저·최고기온은 실제 한파·폭염 극값을 완화하므로 위험을 과소평가할 수 있습니다.")
+    st.dataframe(pd.DataFrame([{'작물': c[0], '기간(일)': c[1], '적정 평균기온(℃)': f'{c[2]}~{c[3]}', '저온 주의(℃ 미만)': c[4], '고온 주의(℃ 초과)': c[5], '주당 강수 비교(mm)': f'{c[6]}~{c[7]}'} for c in CROPS]), hide_index=True, use_container_width=True)
+    st.write("실제 재배 결정 전에는 지역 농업기술센터 또는 농사로의 품종별 재배 정보를 확인하세요. 대표 지점 자료이므로 같은 지역 안에서도 고도·지형에 따라 달라집니다.")
+st.caption("날씨 자료: Open-Meteo · 기온/강수 재분석 자료와 단기 예보 사용 · 인터넷 연결 필요")
+st.markdown("[날씨 자료 및 이용 조건](https://open-meteo.com/) · [과거 날씨 자료 설명](https://open-meteo.com/en/docs/historical-weather-api) · [농사로 재배 정보](https://www.nongsaro.go.kr/)")
