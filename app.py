@@ -8,6 +8,7 @@ GitHub에 app.py / requirements.txt 업로드 후 Streamlit Community Cloud로 �
 from __future__ import annotations
 
 import calendar
+import html
 import io
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
@@ -157,7 +158,8 @@ def score_crop(crop, outlook):
     # Grade gates make severe exposure impossible to hide behind an average.
     grade = '불리' if risk >= .3 or fit < .3 else '유리' if fit >= .7 and risk < .1 else '주의'
     rank = {'불리':0,'주의':1,'유리':2}[grade]*1000 + fit*100 - risk*50
-    return {'작물':name,'적합도':rank,'판정':grade,'초기':initial_fit,'생육':growth_fit,
+    display_score = round(100 * fit * (1 - .5*risk), 1)
+    return {'점수':display_score,'작물':name,'적합도':rank,'판정':grade,'초기':initial_fit,'생육':growth_fit,
             '위험':risk,'비교 기간':days,'평균기온':round(float(frame[COLS[0]].mean()),1),
             '주당 강수량':round(float(frame[COLS[3]].mean()*7),1),
             '예보 일수':int((frame['자료']=='단기 예보').sum()),
@@ -262,6 +264,7 @@ def result_image(lines):
 theme = st.radio("화면 테마", ["밝게 ☀️", "어둡게 🌙"], horizontal=True, key="display_theme")
 dark = theme == "어둡게 🌙"
 colors = {
+    "red": "#ff9e9e" if dark else "#b42318",
     "bg": "#151b18" if dark else "#f5f4e9",
     "surface": "#222d26" if dark else "#ffffff",
     "text": "#f2f6ed" if dark else "#172315",
@@ -325,13 +328,14 @@ input:not([type="radio"]):not([type="checkbox"]), [role="combobox"] {
 [data-testid="stHorizontalBlock"] {flex-direction:column!important;gap:16px;}
 [data-testid="stHorizontalBlock"]>[data-testid="stColumn"] {width:100%!important;flex:1 1 100%!important;min-width:0!important;}
 }
+.red-advice {color:var(--farm-red)!important;-webkit-text-fill-color:var(--farm-red)!important;font-size:23px!important;font-weight:800;line-height:1.6;margin:8px 0;}
 </style>""", unsafe_allow_html=True)
 # Define shared variables on root so portaled calendars/dropdown menus inherit them too.
 st.markdown("<style>:root{" + ''.join(f"--farm-{key}:{value};" for key,value in colors.items()) + f"color-scheme:{'dark' if dark else 'light'};" + "}</style>", unsafe_allow_html=True)
 st.markdown("""<section class="hero"><div class="eyebrow">농사 날씨 길잡이 · 나의 밭, 나의 계절</div>
 <h1>무엇을 심을까요?<br>날씨에서 답을 찾아요.</h1>
 <p>지역과 심을 날짜를 골라 주세요. 앞으로 자라는 동안의 기온과 비를 살펴, 잘 맞는 작물과 주의할 작물을 알려드려요.</p></section>""", unsafe_allow_html=True)
-st.caption("화면 버전: 단계별 판정 8 · 작물 28종")
+st.caption("화면 버전: 점수와 개선 안내 9 · 작물 28종")
 today = datetime.now(timezone(timedelta(hours=9))).date()
 with st.form("settings"):
     st.subheader("우리 밭에 맞게 골라 주세요")
@@ -379,14 +383,14 @@ if run:
                 candidate_outlook = build_outlook(normal, counts, short, candidate_date, 120, adjustment)
                 candidate_outlook = facility_outlook(candidate_outlook, method, warming)
                 candidate_score = score_crop(target_crop, candidate_outlook)
-                date_options.append({'심을 날짜': candidate_date, '점수': candidate_score['적합도'], '판정': candidate_score['판정']})
+                date_options.append({'심을 날짜': candidate_date, '점수': candidate_score['점수'], '순위': candidate_score['적합도'], '판정': candidate_score['판정']})
             st.session_state['analysis'] = (city, start, scenario, results, outlook, note, today.year, crop_choice, date_options, method, warming)
     except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
         st.error("날씨 자료를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주세요. 임의의 날씨로 대체하지 않습니다.")
         with st.expander("오류 내용 보기"):
             st.code(str(exc))
 
-if 'analysis' in st.session_state and len(st.session_state['analysis']) != 11:
+if 'analysis' in st.session_state and (len(st.session_state['analysis']) != 11 or '점수' not in st.session_state['analysis'][3][0]):
     st.session_state.pop('analysis', None)
 
 if 'analysis' in st.session_state:
@@ -399,7 +403,8 @@ if 'analysis' in st.session_state:
     for col, (heading, item) in zip(st.columns(len(cards)), cards):
         with col, st.container(border=True):
             st.subheader(f"{heading} · {item['작물']}")
-            st.metric("기후 조건", item["판정"])
+            st.metric("기후 비교 점수", f"{item['점수']:.1f} / 100점")
+            st.write(f"**판정 · {item['판정']}**")
             st.write(f"초기 2주 적합일 {item['초기']:.0%} · 이후 {item['생육']:.0%}")
             st.write(f"평균 {item['평균기온']}℃ · 비교 {item['비교 기간']}일")
     st.caption(f"{saved_method} · 기온 상승 가정 {0 if saved_method == '노지' else saved_warming}℃")
@@ -419,13 +424,36 @@ if 'analysis' in st.session_state:
         short_tips += ["하우스 내부 · 환기와 토양 수분 직접 점검"]
     elif saved_method == '보온 덮개':
         short_tips += ["덮개 안 실제 온도·수분 확인"]
+    st.subheader("무엇이 문제인가요?")
+    mean = float(outlook.iloc[:target_crop[1]][COLS[0]].mean())
+    issues = []
+    if target['초기'] < .7: issues.append(f"초기 2주 적합일이 {target['초기']:.0%}로 적어요.")
+    if target['생육'] < .7: issues.append(f"이후 생육 적합일이 {target['생육']:.0%}로 적어요.")
+    if cold: issues.append("저온 주의 기준보다 낮은 날이 있어요.")
+    if hot: issues.append("고온 주의 기준보다 높은 날이 있어요.")
+    if not issues: issues.append("현재 기온 가정에서는 큰 감점 요인이 없어요.")
+    actions = []
+    if cold or mean < target_crop[2]: actions.append("더 따뜻한 심는 시기를 비교하세요. 시설은 실제 내부 온도를 측정해 입력하세요.")
+    if hot or mean > target_crop[3]: actions.append("더 서늘한 심는 시기를 비교하세요. 차광·환기는 실제 온도를 확인하며 적용하세요.")
+    alternatives = [r for r in date_options if r['점수'] > date_options[0]['점수']]
+    if alternatives:
+        better = max(alternatives, key=lambda r:r['점수'])
+        actions.append(f"같은 작물을 {better['심을 날짜']:%m월 %d일}에 심는 가정은 {better['점수']:.1f}점으로 {better['점수']-date_options[0]['점수']:.1f}점 높아요.")
+    else: actions.append("비교한 세 날짜에는 더 높은 점수가 없어요. 다른 달도 비교해 보세요.")
+    for message in issues:
+        st.markdown('<div class="red-advice">문제 · '+html.escape(message)+'</div>', unsafe_allow_html=True)
+    st.subheader("점수를 높이려면?")
+    for message in actions:
+        st.markdown('<div class="red-advice">대안 · '+html.escape(message)+'</div>', unsafe_allow_html=True)
+    st.caption("점수는 기온 적합일과 온도 위험만 반영합니다. 물주기·비료·배수는 중요하지만 이 점수를 직접 올리지는 않습니다. 입력값만 바꾸는 것은 실제 개선이 아닙니다.")
     st.subheader("관리 핵심")
     for tip in short_tips[:3]:
         st.write("**• " + tip + "**")
     st.subheader("심는 날짜 비교")
     for col, r in zip(st.columns(3), date_options):
         with col:
-            st.metric(f"{r['심을 날짜']:%m월 %d일}", r["판정"])
+            st.metric(f"{r['심을 날짜']:%m월 %d일}", f"{r['점수']:.1f}점")
+            st.write(r["판정"])
     best_date = max(date_options, key=lambda x:x['점수'])
     if best_date['점수'] > date_options[0]['점수']:
         st.success(f"세 날짜 중 {best_date['심을 날짜']:%m월 %d일}이 가장 유리해요.")
@@ -433,8 +461,9 @@ if 'analysis' in st.session_state:
         st.warning("세 날짜 모두 불리해요. 더 따뜻한 계절을 검토하세요." if cold else "세 날짜 모두 불리해요. 다른 계절을 검토하세요.")
     else:
         st.info("선택한 날보다 더 좋은 날짜는 없어요. 동점은 우열이 없어요.")
-    lines = ['농사 날씨 길잡이',f'{city} · {start:%Y-%m-%d}',f"{target['작물']} · {target['판정']} / {saved_method}", '관리 핵심',*short_tips,'심는 날짜 비교']
-    lines += [f"{r['심을 날짜']:%Y-%m-%d} · {r['판정']}" for r in date_options]
+    lines = ['농사 날씨 길잡이',f'{city} · {start:%Y-%m-%d}',f"{target['작물']} · {target['점수']:.1f}점 · {target['판정']} / {saved_method}", '관리 핵심',*short_tips,'심는 날짜 비교']
+    lines += [f"{r['심을 날짜']:%Y-%m-%d} · {r['점수']:.1f}점 · {r['판정']}" for r in date_options]
+    lines += ['문제', *issues, '개선 방향', *actions]
     lines += ['과거 기후 기반 교육용 비교 · 실제 장기 날씨 예측 아님',f'과거 자료 {year-5}~{year-1} · Open-Meteo']
     st.subheader("결과 저장")
     try:
@@ -443,7 +472,7 @@ if 'analysis' in st.session_state:
         st.warning("이미지 저장을 준비하지 못했어요. 글로 저장을 이용하세요.")
     st.download_button("글로 저장", '\n'.join(lines).encode('utf-8-sig'), file_name=f"농사결과_{start}.txt", mime="text/plain", use_container_width=True)
     with st.expander("자세히 보기 · 전체 순위 / 관리 / 자료"):
-        st.table(pd.DataFrame([{'작물':r['작물'],'판정':r['판정']} for r in results]))
+        st.table(pd.DataFrame([{'작물':r['작물'],'점수':r['점수'],'판정':r['판정']} for r in results]))
         for tip in management(target_crop,outlook):
             if saved_method != '비닐하우스' or not tip.startswith(('물주기 준비:', '배수 준비:', '수분 점검:')): st.write('• '+tip)
         st.write(f"단기 예보 {target['예보 일수']}일 · 나머지는 과거 기후 기반 추정")
@@ -453,6 +482,7 @@ if 'analysis' in st.session_state:
 
 with st.expander("판정 기준과 한계"):
     st.write("검증된 농업 진단이 아닌 교육용 선별 기준입니다. 초기 14일(활착 참고)과 이후 기간을 나누되, 둘 다 같은 작물별 적정 평균기온 범위를 사용합니다. 발아·토양온도·정식 기준을 따로 검증한 모델이 아닙니다.")
+    st.write("비교 점수 = 100 × (초기 적합일 비중 × 0.4 + 이후 적합일 비중 × 0.6) × (1 − 저온·고온 중 큰 노출 비중 × 0.5). 실제 성공 확률이 아닙니다. 등급은 심한 위험을 우선 확인하므로 점수 순서와 등급 순서는 다를 수 있습니다.")
     st.write("적합일 비중 = 초기 40% + 이후 60%. 유리: 적합일 비중 70% 이상이고 저온·고온 노출 각각 10% 미만. 불리: 적합일 비중 30% 미만이거나 저온 또는 고온 노출 30% 이상. 나머지는 주의입니다. 이 수치는 교육용 가정입니다. 같은 등급에서도 적합일과 위험 노출로 상대 비교합니다.")
     st.write("비는 관수·배수 준비에만 사용하며 판정에서 제외합니다. 하우스 안에 실외 강수를 적용하지 않습니다. 시설은 입력한 기온 차이를 모든 날짜의 기온에 더하는 시나리오일 뿐 실제 보온·환기 효과 예측이 아닙니다. 광량·습도·토양·품종·병해충은 미반영입니다.")
     st.write("장기 자료는 최근 5년 같은 날짜의 평균입니다. 실제 한파·폭염·연속 강우 위험은 과소평가할 수 있습니다. 날짜 비교는 같은 작물의 세 날짜에 한정합니다. 작물 기간은 단순화된 비교 구간이며 수확일 예측이 아닙니다.")
