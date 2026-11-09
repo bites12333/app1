@@ -14,15 +14,20 @@ import requests
 import streamlit as st
 
 st.set_page_config(page_title="농사 날씨 길잡이", page_icon="🌱", layout="centered")
+# 도 단위 선택이며 좌표는 각 도 안의 대표 지점입니다(도 전체 평균 아님).
 CITIES = {
-    "서울": (37.57, 126.98), "춘천": (37.88, 127.73),
-    "강릉": (37.75, 128.88), "수원": (37.26, 127.03),
-    "청주": (36.64, 127.49), "대전": (36.35, 127.38),
-    "전주": (35.82, 127.15), "광주": (35.16, 126.85),
-    "목포": (34.81, 126.39), "대구": (35.87, 128.60),
-    "안동": (36.57, 128.73), "부산": (35.18, 129.08),
-    "진주": (35.18, 128.11), "제주": (33.50, 126.53),
+    "경기도": (37.26, 127.03),
+    "강원도": (37.88, 127.73),
+    "충청북도": (36.64, 127.49),
+    "충청남도": (36.66, 126.67),
+    "전라북도": (35.82, 127.15),
+    "전라남도": (34.81, 126.46),
+    "경상북도": (36.57, 128.73),
+    "경상남도": (35.23, 128.68),
+    "제주도": (33.50, 126.53),
+    "독도": (37.24, 131.87),
 }
+
 # 이름, 비교 기간(일), 적정 평균기온 하한/상한, 저온 위험 기준, 고온 위험 기준,
 # 주당 강수 비교범위 하한/상한(mm). 모두 교육용 가정이며 품종별 기준이 아님.
 CROPS = [
@@ -152,7 +157,8 @@ for offset in range(7):
     month = (today.month-1+offset)%12+1
     months.append(date(year, month, 1))
 with st.form("settings"):
-    city = st.selectbox("① 농사지을 지역", list(CITIES), index=6)
+    city = st.selectbox("① 농사지을 지역", list(CITIES), index=0)
+    st.caption("도별 대표 지점의 날씨로 비교합니다. 도 전체 평균이 아니며, 같은 도에서도 실제 날씨는 다를 수 있습니다.")
     selected_month = st.selectbox("② 심을 달", months, format_func=lambda d: f"{d.year}년 {d.month}월")
     st.caption("이번 달은 오늘부터, 다음 달 이후는 해당 월 1일부터 비교합니다.")
     scenario = st.radio("③ 앞으로의 기온 가정", ["최근 5년과 비슷", "조금 더 따뜻함 (+2℃)", "조금 더 서늘함 (-2℃)"], horizontal=False)
@@ -185,6 +191,8 @@ if 'analysis' in st.session_state:
     city, start, scenario, results, outlook, note, year = st.session_state['analysis']
     st.divider()
     st.subheader(f"{city} · {start.year}년 {start.month}월 {start.day}일 심기")
+    if city == "독도":
+        st.warning("독도는 해상 격자 기반 기후 참고용입니다. 작은 섬의 실제 기후·토양·염해·재배 가능성을 반영하지 않으므로 농작물 추천을 실제 재배 판단에 사용하지 마세요.")
     st.caption(f"기온 가정: {scenario} | 과거 자료: {year-5}~{year-1}년 | 노지 재배 가정")
     if note:
         st.warning(note)
