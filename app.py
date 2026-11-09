@@ -13,7 +13,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
-st.set_page_config(page_title="농사 날씨 길잡이", page_icon="🌱", layout="centered")
+st.set_page_config(page_title="농사 날씨 길잡이", page_icon="🌱", layout="wide")
 # 도 단위 선택이며 좌표는 각 도 안의 대표 지점입니다(도 전체 평균 아님).
 CITIES = {
     "경기도": (37.26, 127.03),
@@ -140,33 +140,65 @@ def score_crop(crop, outlook):
 
 
 st.markdown("""<style>
-html, body, [class*='css'] {font-size:18px;}
-.block-container {max-width:760px; padding-top:1.5rem;}
-h1 {font-size:2rem!important;} h2 {font-size:1.5rem!important;}
-label, [data-testid='stWidgetLabel'] p {font-size:1.15rem!important;}
-.stButton button {min-height:56px;font-size:1.2rem;border-radius:12px;}
-[data-testid='stMetricValue'] {font-size:1.8rem;}
+:root {color-scheme:light;}
+.stApp, [data-testid="stAppViewContainer"] {background:#f5f4e9;color:#20251d;}
+[data-testid="stHeader"] {background:#f5f4e9;}
+.block-container {max-width:1440px;padding:2.5rem 4vw 3rem;}
+html, body, p, label, input {font-family:system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;}
+p, li {font-size:18px;line-height:1.7;color:#30392c;}
+h1,h2,h3,label,[data-testid="stWidgetLabel"] p {color:#20251d!important;}
+.hero {padding:24px 0 30px;border-top:2px solid #20251d;border-bottom:1px solid #a7ad98;margin-bottom:28px;}
+.hero .eyebrow {font-size:17px;font-weight:700;color:#47633c;letter-spacing:.12em;}
+.hero h1 {font-size:clamp(36px,5.7vw,78px)!important;line-height:1.12;letter-spacing:-.055em;font-weight:900;margin:14px 0;}
+.hero p {margin:0;max-width:760px;font-size:20px;}
+[data-testid="stForm"] {background:#fffef7;border:1px solid #c7ccb8;border-radius:20px;padding:24px;}
+[data-testid="stWidgetLabel"] p {font-size:20px!important;font-weight:700;}
+[data-baseweb="select"]>div, [data-baseweb="input"] {background:#fffef7!important;color:#20251d!important;border-color:#8b967d!important;min-height:52px;}
+input {color:#20251d!important;-webkit-text-fill-color:#20251d!important;font-size:18px!important;}
+[data-baseweb="select"] span {color:#20251d!important;}
+[data-baseweb="popover"] {color-scheme:light;}
+[data-baseweb="popover"] [role="listbox"], [data-baseweb="popover"] [role="option"] {background:#fffef7!important;color:#20251d!important;}
+[data-testid="stCaptionContainer"] p {font-size:15px!important;color:#57614e!important;}
+[data-testid="stRadio"] label p {font-size:18px!important;}
+.stButton button, [data-testid="stFormSubmitButton"] button {background:#365a32!important;color:#ffffff!important;border:0!important;min-height:58px;border-radius:12px;font-size:20px!important;font-weight:700;}
+button[kind="primary"] p {color:white!important;}
+[data-testid="stExpander"] {background:#fffef7;color:#20251d;border-color:#c7ccb8;border-radius:12px;}
+[data-testid="stExpander"] summary p {color:#20251d!important;}
+[data-testid="stVerticalBlockBorderWrapper"]>div {border-color:#c7ccb8!important;border-radius:18px;}
+[data-testid="stAlert"] {border-radius:12px;}
+@media(min-width:769px) {[data-testid="stHorizontalBlock"] {align-items:stretch;gap:28px;}}
+@media(max-width:768px) {
+.block-container {padding:1.2rem 1rem 2rem;}
+.hero {padding:18px 0 22px;margin-bottom:20px;}
+.hero h1 {font-size:42px!important;}
+.hero p {font-size:18px;}
+[data-testid="stHorizontalBlock"] {flex-direction:column!important;gap:18px;}
+[data-testid="stHorizontalBlock"]>[data-testid="stColumn"] {width:100%!important;flex:1 1 100%!important;min-width:0!important;}
+[data-testid="stForm"] {padding:18px;}
+}
 </style>""", unsafe_allow_html=True)
-st.title("🌱 농사 날씨 길잡이")
-st.write("**어디에, 언제 심으시나요?** 기온과 비를 살펴 작물을 비교해 드립니다.")
-st.info("몇 달 뒤의 실제 날씨를 맞히는 앱은 아닙니다. 가까운 날은 예보, 먼 날은 최근 5년 기후를 바탕으로 비교합니다.")
+st.markdown("""<section class="hero"><div class="eyebrow">농사 날씨 길잡이 · 나의 밭, 나의 계절</div>
+<h1>무엇을 심을까요?<br>날씨에서 답을 찾아요.</h1>
+<p>지역과 심을 날짜를 골라 주세요. 앞으로 자라는 동안의 기온과 비를 살펴, 잘 맞는 작물과 주의할 작물을 알려드려요.</p></section>""", unsafe_allow_html=True)
 today = datetime.now(timezone(timedelta(hours=9))).date()
-months = []
-for offset in range(7):
-    year = today.year + (today.month-1+offset)//12
-    month = (today.month-1+offset)%12+1
-    months.append(date(year, month, 1))
 with st.form("settings"):
-    city = st.selectbox("① 농사지을 지역", list(CITIES), index=0)
-    st.caption("도별 대표 지점의 날씨로 비교합니다. 도 전체 평균이 아니며, 같은 도에서도 실제 날씨는 다를 수 있습니다.")
-    selected_month = st.selectbox("② 심을 달", months, format_func=lambda d: f"{d.year}년 {d.month}월")
-    st.caption("이번 달은 오늘부터, 다음 달 이후는 해당 월 1일부터 비교합니다.")
-    scenario = st.radio("③ 앞으로의 기온 가정", ["최근 5년과 비슷", "조금 더 따뜻함 (+2℃)", "조금 더 서늘함 (-2℃)"], horizontal=False)
-    run = st.form_submit_button("심을 작물 알아보기", type="primary", use_container_width=True)
+    st.subheader("우리 밭에 맞게 골라 주세요")
+    region_col, date_col, climate_col = st.columns([1, 1, 1.15])
+    with region_col:
+        city = st.selectbox("① 농사지을 지역", list(CITIES), index=0)
+        st.caption("도별 대표 지점 기준입니다. 같은 도에서도 날씨는 다를 수 있어요.")
+    with date_col:
+        selected_date = st.date_input("② 심을 날짜", value=today, min_value=today,
+                                      max_value=today+timedelta(days=365), format="YYYY/MM/DD")
+        st.caption("날짜 칸을 누르면 달력이 열려요. 선택한 날부터 비교합니다.")
+    with climate_col:
+        scenario = st.radio("③ 앞으로의 기온 가정", ["최근 5년과 비슷", "조금 더 따뜻함 (+2℃)", "조금 더 서늘함 (-2℃)"], horizontal=False)
+    run = st.form_submit_button("우리 밭에 맞는 작물 알아보기 →", type="primary", use_container_width=True)
+st.caption("가까운 날은 단기 예보, 먼 날은 최근 5년 기후를 활용합니다. 몇 달 뒤 실제 날씨를 정확히 예측하는 서비스는 아닙니다.")
 
 if run:
     st.session_state.pop("analysis", None)
-    start = max(today, selected_month)
+    start = selected_date
     adjustment = {"최근 5년과 비슷": 0, "조금 더 따뜻함 (+2℃)": 2, "조금 더 서늘함 (-2℃)": -2}[scenario]
     lat, lon = CITIES[city]
     try:
@@ -197,8 +229,9 @@ if 'analysis' in st.session_state:
     if note:
         st.warning(note)
     st.warning("점수는 아래 8개 작물 사이의 교육용 비교 지수입니다. 수확 성공 확률이나 실제 수익이 아니며, 최고 점수가 낮으면 추천 작물도 적합하지 않을 수 있습니다.")
-    for heading, item in [("✅ 가장 유리한 작물", results[0]), ("⚠️ 가장 불리한 작물", results[-1])]:
-        with st.container(border=True):
+    result_columns = st.columns(2)
+    for result_col, (heading, item) in zip(result_columns, [("🌱 가장 유리한 작물", results[0]), ("🍂 가장 불리한 작물", results[-1])]):
+        with result_col, st.container(border=True):
             st.subheader(f"{heading}: {item['작물']}")
             st.write(f"**비교 점수 {item['적합도']:.1f} / 100 · 생육 비교 {item['비교 기간']}일**")
             st.write(f"기간 평균 {item['평균기온']}℃ · 주당 평균 강수 {item['주당 강수량']}mm")
