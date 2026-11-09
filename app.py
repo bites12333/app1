@@ -351,11 +351,43 @@ input:not([type="radio"]):not([type="checkbox"]),
 [data-testid="stFormSubmitButton"] button,
 [data-testid="stDownloadButton"] button {border:2px solid #809173!important;}
 
+
+/* V4: include date-input's outer styled wrapper and select arrow wrappers.
+   Streamlit versions differ in their BaseWeb wrapper attributes. */
+[data-testid="stDateInput"] > div,
+[data-testid="stDateInput"] > div > div,
+[data-testid="stDateInput"] [data-baseweb],
+[data-testid="stDateInput"] [data-baseweb] *,
+[data-testid="stDateInputField"],
+[data-testid="stDateInput"] input,
+[data-baseweb="select"] > div,
+[data-baseweb="select"] > div > div,
+[data-baseweb="select"] [role="button"],
+[data-baseweb="select"] [data-baseweb],
+[data-baseweb="select"] [data-baseweb] *,
+[data-testid="stSelectbox"] [data-baseweb="select"] > div > div:last-child {
+ background:#ffffff!important;
+ background-color:#ffffff!important;
+ color:#111111!important;
+ -webkit-text-fill-color:#111111!important;
+ color-scheme:light!important;
+}
+[data-testid="stDateInput"] button,
+[data-testid="stDateInput"] button *,
+[data-testid="stDateInput"] svg,
+[data-baseweb="select"] svg,
+[data-baseweb="select"] svg * {
+ background:#ffffff!important;color:#111111!important;
+ -webkit-text-fill-color:#111111!important;
+}
+[data-testid="stDateInput"] svg,
+[data-baseweb="select"] svg {fill:currentColor!important;}
+
 </style>""", unsafe_allow_html=True)
 st.markdown("""<section class="hero"><div class="eyebrow">농사 날씨 길잡이 · 나의 밭, 나의 계절</div>
 <h1>무엇을 심을까요?<br>날씨에서 답을 찾아요.</h1>
 <p>지역과 심을 날짜를 골라 주세요. 앞으로 자라는 동안의 기온과 비를 살펴, 잘 맞는 작물과 주의할 작물을 알려드려요.</p></section>""", unsafe_allow_html=True)
-st.caption("화면 버전: 흰색 입력창 3 · 작물 28종")
+st.caption("화면 버전: 흰색 입력창 4 · 작물 28종")
 today = datetime.now(timezone(timedelta(hours=9))).date()
 with st.form("settings"):
     st.subheader("우리 밭에 맞게 골라 주세요")
