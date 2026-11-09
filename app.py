@@ -235,20 +235,29 @@ input {color:#20251d!important;-webkit-text-fill-color:#20251d!important;font-si
 [data-testid="stCaptionContainer"] p {font-size:15px!important;color:#57614e!important;}
 [data-testid="stRadio"] label p {font-size:18px!important;}
 .stButton button, [data-testid="stFormSubmitButton"] button {background:#365a32!important;color:#ffffff!important;border:0!important;min-height:58px;border-radius:12px;font-size:20px!important;font-weight:700;}
-/* Explicit widget colors also cover Streamlit dark-theme nested elements. */
-[data-testid="stSelectbox"] [data-baseweb="select"] > div,
-[data-testid="stSelectbox"] [data-baseweb="select"] > div > div,
-[data-testid="stDateInput"] [data-baseweb="input"],
-[data-testid="stDateInput"] [data-baseweb="input"] > div {
-background:#30332b!important;color:#ffffff!important;
-}
+/* White input surfaces with black text, including nested BaseWeb elements. */
+[data-testid="stSelectbox"] [data-baseweb="select"],
 [data-testid="stSelectbox"] [data-baseweb="select"] div,
-[data-testid="stSelectbox"] [data-baseweb="select"] span,
-[data-testid="stSelectbox"] [data-baseweb="select"] input,
+[data-testid="stDateInput"] [data-baseweb="input"],
+[data-testid="stDateInput"] [data-baseweb="input"] div,
 [data-testid="stDateInput"] input {
-color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;
+background-color:#ffffff!important;color:#111111!important;
 }
-[data-testid="stSelectbox"] svg, [data-testid="stDateInput"] svg {color:#ffffff!important;fill:currentColor;}
+[data-testid="stSelectbox"] [data-baseweb="select"] *,
+[data-testid="stDateInput"] input {
+color:#111111!important;-webkit-text-fill-color:#111111!important;
+caret-color:#111111!important;
+}
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stDateInput"] [data-baseweb="input"] {border:1px solid #8b967d!important;}
+[data-testid="stSelectbox"] svg, [data-testid="stDateInput"] svg {color:#111111!important;fill:currentColor;}
+[data-baseweb="popover"] [role="listbox"],
+[data-baseweb="popover"] [role="option"],
+[data-baseweb="popover"] [role="option"] * {
+background-color:#ffffff!important;color:#111111!important;-webkit-text-fill-color:#111111!important;
+}
+[data-baseweb="popover"] [role="option"]:hover,
+[data-baseweb="popover"] [role="option"][aria-selected="true"] {background-color:#e8efdf!important;}
 [data-testid="stFormSubmitButton"] button *, .stButton button *,
 button[kind="primary"] *, button[data-testid="stBaseButton-primaryFormSubmit"] * {
 color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;
