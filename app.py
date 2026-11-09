@@ -257,159 +257,79 @@ def result_image(lines):
     return buffer.getvalue()
 
 
+theme = st.radio("화면 테마", ["밝게 ☀️", "어둡게 🌙"], horizontal=True, key="display_theme")
+dark = theme == "어둡게 🌙"
+colors = {
+    "bg": "#151b18" if dark else "#f5f4e9",
+    "surface": "#222d26" if dark else "#ffffff",
+    "text": "#f2f6ed" if dark else "#172315",
+    "muted": "#c4d0bf" if dark else "#46513d",
+    "border": "#71836d" if dark else "#87977b",
+    "tint": "#304235" if dark else "#e8efdf",
+}
 st.markdown("""<style>
-:root {color-scheme:light;}
-.stApp, [data-testid="stAppViewContainer"] {background:#f5f4e9;color:#20251d;}
-[data-testid="stHeader"] {background:#f5f4e9;}
-.block-container {max-width:1440px;padding:2.5rem 4vw 3rem;}
-html, body, p, label, input {font-family:system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;}
-p, li {font-size:18px;line-height:1.7;color:#30392c;}
-h1,h2,h3,label,[data-testid="stWidgetLabel"] p {color:#20251d!important;}
-.hero {padding:24px 0 30px;border-top:2px solid #20251d;border-bottom:1px solid #a7ad98;margin-bottom:28px;}
-.hero .eyebrow {font-size:17px;font-weight:700;color:#47633c;letter-spacing:.12em;}
-.hero h1 {font-size:clamp(36px,5.7vw,78px)!important;line-height:1.12;letter-spacing:-.055em;font-weight:900;margin:14px 0;}
-.hero p {margin:0;max-width:760px;font-size:20px;}
-[data-testid="stForm"] {background:#fffef7;border:1px solid #c7ccb8;border-radius:20px;padding:24px;}
-[data-testid="stWidgetLabel"] p {font-size:20px!important;font-weight:700;}
-[data-baseweb="select"]>div, [data-baseweb="input"] {background:#fffef7!important;color:#20251d!important;border-color:#8b967d!important;min-height:52px;}
-input {color:#20251d!important;-webkit-text-fill-color:#20251d!important;font-size:18px!important;}
-[data-baseweb="select"] span {color:#20251d!important;}
-[data-baseweb="popover"] {color-scheme:light;}
-[data-baseweb="popover"] [role="listbox"], [data-baseweb="popover"] [role="option"] {background:#fffef7!important;color:#20251d!important;}
-[data-testid="stCaptionContainer"] p {font-size:15px!important;color:#57614e!important;}
-[data-testid="stRadio"] label p {font-size:18px!important;}
-.stButton button, [data-testid="stFormSubmitButton"] button {background:#365a32!important;color:#ffffff!important;border:0!important;min-height:58px;border-radius:12px;font-size:20px!important;font-weight:700;}
-/* White input surfaces with black text, including nested BaseWeb elements. */
-[data-testid="stSelectbox"] [data-baseweb="select"],
-[data-testid="stSelectbox"] [data-baseweb="select"] div,
-[data-testid="stDateInput"] [data-baseweb="input"],
-[data-testid="stDateInput"] [data-baseweb="input"] div,
-[data-testid="stDateInput"] input {
-background-color:#ffffff!important;color:#111111!important;
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {background:var(--farm-bg)!important;color:var(--farm-text)!important;}
+.block-container {max-width:1440px;padding:2rem 4vw 3rem;}
+html,body,input,button {font-family:system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;}
+h1,h2,h3,h4,p,li,label,summary, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] * {
+ color:var(--farm-text)!important;-webkit-text-fill-color:var(--farm-text)!important;
 }
-[data-testid="stSelectbox"] [data-baseweb="select"] *,
-[data-testid="stDateInput"] input {
-color:#111111!important;-webkit-text-fill-color:#111111!important;
-caret-color:#111111!important;
-}
-[data-testid="stSelectbox"] [data-baseweb="select"] > div,
-[data-testid="stDateInput"] [data-baseweb="input"] {border:1px solid #8b967d!important;}
-[data-testid="stSelectbox"] svg, [data-testid="stDateInput"] svg {color:#111111!important;fill:currentColor;}
-[data-baseweb="popover"] [role="listbox"],
-[data-baseweb="popover"] [role="option"],
-[data-baseweb="popover"] [role="option"] * {
-background-color:#ffffff!important;color:#111111!important;-webkit-text-fill-color:#111111!important;
-}
-[data-baseweb="popover"] [role="option"]:hover,
-[data-baseweb="popover"] [role="option"][aria-selected="true"] {background-color:#e8efdf!important;}
-[data-testid="stFormSubmitButton"] button *, .stButton button *,
-button[kind="primary"] *, button[data-testid="stBaseButton-primaryFormSubmit"] * {
-color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;
-}
-
-[data-testid="stExpander"] {background:#fffef7;color:#20251d;border-color:#c7ccb8;border-radius:12px;}
-[data-testid="stExpander"] summary p {color:#20251d!important;}
-[data-testid="stVerticalBlockBorderWrapper"]>div {border-color:#c7ccb8!important;border-radius:18px;}
-[data-testid="stAlert"] {border-radius:12px;}
-@media(min-width:769px) {[data-testid="stHorizontalBlock"] {align-items:stretch;gap:28px;}}
-@media(max-width:768px) {
-.block-container {padding:1.2rem 1rem 2rem;}
-.hero {padding:18px 0 22px;margin-bottom:20px;}
-.hero h1 {font-size:42px!important;}
-.hero p {font-size:18px;}
-[data-testid="stHorizontalBlock"] {flex-direction:column!important;gap:18px;}
-[data-testid="stHorizontalBlock"]>[data-testid="stColumn"] {width:100%!important;flex:1 1 100%!important;min-width:0!important;}
-[data-testid="stForm"] {padding:18px;}
-}
-
-/* LIGHT INPUT V3: target actual control surfaces independently of wrapper names. */
+p,li,[data-testid="stMarkdownContainer"] p {font-size:21px!important;line-height:1.6!important;}
+h2,h3 {font-size:27px!important;}
+.hero {padding:24px 0;border-top:2px solid var(--farm-border);border-bottom:1px solid var(--farm-border);margin:20px 0 26px;}
+.hero .eyebrow {font-size:18px;font-weight:700;color:var(--farm-muted)!important;}
+.hero h1 {font-size:clamp(36px,5vw,68px)!important;line-height:1.15;letter-spacing:-.05em;font-weight:900;}
+.hero p {max-width:900px;}
+[data-testid="stForm"], [data-testid="stExpander"] {background:var(--farm-surface)!important;border:1px solid var(--farm-border)!important;border-radius:18px;padding:18px;}
+[data-testid="stWidgetLabel"] p {font-size:21px!important;font-weight:700;}
 [data-baseweb="select"], [data-baseweb="select"] *,
 [data-baseweb="input"], [data-baseweb="input"] *,
 [data-baseweb="base-input"], [data-baseweb="base-input"] *,
-[data-baseweb="textarea"], [role="combobox"],
-input:not([type="radio"]):not([type="checkbox"]),
-[data-baseweb="popover"] [role="listbox"],
-[data-baseweb="popover"] [role="listbox"] * {
-    background:#ffffff!important;
-    background-color:#ffffff!important;
-    color:#111111!important;
-    -webkit-text-fill-color:#111111!important;
-    caret-color:#111111!important;
-    color-scheme:light!important;
+[data-testid="stDateInput"] > div, [data-testid="stDateInput"] > div > div,
+[data-testid="stDateInput"] [data-baseweb], [data-testid="stDateInput"] [data-baseweb] *,
+[data-testid="stDateInput"] button, [data-testid="stDateInput"] button *,
+input:not([type="radio"]):not([type="checkbox"]), [role="combobox"] {
+ background:var(--farm-surface)!important;color:var(--farm-text)!important;
+ -webkit-text-fill-color:var(--farm-text)!important;caret-color:var(--farm-text)!important;
 }
-[data-baseweb="select"] svg, [data-baseweb="input"] svg {
-    fill:#111111!important;color:#111111!important;background:transparent!important;
+[data-baseweb="select"] > div, [data-baseweb="input"] {min-height:54px;border-color:var(--farm-border)!important;}
+[data-baseweb="select"] svg,[data-testid="stDateInput"] svg {fill:currentColor!important;color:var(--farm-text)!important;}
+[data-baseweb="popover"], [data-baseweb="popover"] *,
+[data-baseweb="calendar"], [data-baseweb="calendar"] * {
+ background-color:var(--farm-surface)!important;color:var(--farm-text)!important;-webkit-text-fill-color:var(--farm-text)!important;
 }
-[data-testid="stFormSubmitButton"] button,
-[data-testid="stFormSubmitButton"] button *,
-[data-testid="stDownloadButton"] button,
-[data-testid="stDownloadButton"] button *,
-.stButton button, .stButton button * {
-    background:#ffffff!important;color:#111111!important;
-    -webkit-text-fill-color:#111111!important;
-    border-color:#809173!important;
+[data-baseweb="popover"] [aria-disabled="true"] {opacity:.4;}
+[data-baseweb="popover"] [aria-selected="true"], [data-baseweb="popover"] [role="option"]:hover {
+ background:var(--farm-tint)!important;outline:2px solid var(--farm-border);outline-offset:-2px;
 }
-[data-testid="stFormSubmitButton"] button,
-[data-testid="stDownloadButton"] button {border:2px solid #809173!important;}
-
-
-/* V4: include date-input's outer styled wrapper and select arrow wrappers.
-   Streamlit versions differ in their BaseWeb wrapper attributes. */
-[data-testid="stDateInput"] > div,
-[data-testid="stDateInput"] > div > div,
-[data-testid="stDateInput"] [data-baseweb],
-[data-testid="stDateInput"] [data-baseweb] *,
-[data-testid="stDateInputField"],
-[data-testid="stDateInput"] input,
-[data-baseweb="select"] > div,
-[data-baseweb="select"] > div > div,
-[data-baseweb="select"] [role="button"],
-[data-baseweb="select"] [data-baseweb],
-[data-baseweb="select"] [data-baseweb] *,
-[data-testid="stSelectbox"] [data-baseweb="select"] > div > div:last-child {
- background:#ffffff!important;
- background-color:#ffffff!important;
- color:#111111!important;
- -webkit-text-fill-color:#111111!important;
- color-scheme:light!important;
+.stButton button, [data-testid="stFormSubmitButton"] button, [data-testid="stDownloadButton"] button {
+ background:var(--farm-surface)!important;color:var(--farm-text)!important;border:2px solid var(--farm-border)!important;
+ min-height:58px;border-radius:12px;font-size:21px!important;
 }
-[data-testid="stDateInput"] button,
-[data-testid="stDateInput"] button *,
-[data-testid="stDateInput"] svg,
-[data-baseweb="select"] svg,
-[data-baseweb="select"] svg * {
- background:#ffffff!important;color:#111111!important;
- -webkit-text-fill-color:#111111!important;
+.stButton button *, [data-testid="stFormSubmitButton"] button *, [data-testid="stDownloadButton"] button * {
+ color:var(--farm-text)!important;-webkit-text-fill-color:var(--farm-text)!important;
 }
-[data-testid="stDateInput"] svg,
-[data-baseweb="select"] svg {fill:currentColor!important;}
-
-
-/* V5: readable notices, static tables and save controls in light/dark themes. */
-[data-testid="stAlert"],
-[data-testid="stAlert"] > div,
-[data-testid="stAlert"] [data-testid="stMarkdownContainer"],
-[data-testid="stAlert"] [data-testid="stMarkdownContainer"] * {
- background:#edf3e7!important;color:#172315!important;
- -webkit-text-fill-color:#172315!important;
-}
-[data-testid="stAlert"] {border:1px solid #9bad8a!important;}
-[data-testid="stTable"], [data-testid="stTable"] *,
-[data-testid="stTable"] table, [data-testid="stTable"] th,
-[data-testid="stTable"] td {
- background:#ffffff!important;color:#111111!important;
- -webkit-text-fill-color:#111111!important;
- border-color:#c3ccb9!important;
-}
-[data-testid="stTable"] th {background:#e8efdf!important;}
+[data-testid="stAlert"], [data-testid="stAlert"] > div {background:var(--farm-tint)!important;border-radius:12px;color:var(--farm-text)!important;}
+[data-testid="stMetricValue"] {font-size:42px!important;font-weight:800;color:var(--farm-text)!important;}
+[data-testid="stMetricLabel"] p {font-size:21px!important;}
+[data-testid="stCaptionContainer"] p {font-size:17px!important;color:var(--farm-muted)!important;-webkit-text-fill-color:var(--farm-muted)!important;}
+[data-testid="stTable"], [data-testid="stTable"] * {background:var(--farm-surface)!important;color:var(--farm-text)!important;-webkit-text-fill-color:var(--farm-text)!important;border-color:var(--farm-border)!important;}
+[data-testid="stTable"] th {background:var(--farm-tint)!important;}
 [data-testid="stTable"] {overflow-x:auto;}
-[data-testid="stCaptionContainer"] p {color:#46513d!important;}
-
+[data-testid="stVerticalBlockBorderWrapper"]>div {border-color:var(--farm-border)!important;border-radius:16px;}
+@media(max-width:768px) {
+.block-container {padding:1rem 1rem 2rem;}
+.hero h1 {font-size:40px!important;}
+[data-testid="stHorizontalBlock"] {flex-direction:column!important;gap:16px;}
+[data-testid="stHorizontalBlock"]>[data-testid="stColumn"] {width:100%!important;flex:1 1 100%!important;min-width:0!important;}
+}
 </style>""", unsafe_allow_html=True)
+# Define shared variables on root so portaled calendars/dropdown menus inherit them too.
+st.markdown("<style>:root{" + ''.join(f"--farm-{key}:{value};" for key,value in colors.items()) + f"color-scheme:{'dark' if dark else 'light'};" + "}</style>", unsafe_allow_html=True)
 st.markdown("""<section class="hero"><div class="eyebrow">농사 날씨 길잡이 · 나의 밭, 나의 계절</div>
 <h1>무엇을 심을까요?<br>날씨에서 답을 찾아요.</h1>
 <p>지역과 심을 날짜를 골라 주세요. 앞으로 자라는 동안의 기온과 비를 살펴, 잘 맞는 작물과 주의할 작물을 알려드려요.</p></section>""", unsafe_allow_html=True)
-st.caption("화면 버전: 화면 개선 5 · 작물 28종")
+st.caption("화면 버전: 밝게 / 어둡게 7 · 작물 28종")
 today = datetime.now(timezone(timedelta(hours=9))).date()
 with st.form("settings"):
     st.subheader("우리 밭에 맞게 골라 주세요")
@@ -461,76 +381,58 @@ if run:
 
 if 'analysis' in st.session_state:
     city, start, scenario, results, outlook, note, year, saved_choice, date_options = st.session_state['analysis']
-    st.divider()
-    st.subheader(f"{city} · {start.year}년 {start.month}월 {start.day}일 심기")
-    if city == "독도":
-        st.warning("독도는 해상 격자 기반 기후 참고용입니다. 작은 섬의 실제 기후·토양·염해·재배 가능성을 반영하지 않으므로 농작물 추천을 실제 재배 판단에 사용하지 마세요.")
-    st.caption(f"기온 가정: {scenario} | 과거 자료: {year-5}~{year-1}년 | 노지 재배 가정")
-    if note:
-        st.warning(note)
-    st.warning("점수는 아래 작물 사이의 교육용 비교 지수입니다. 수확 성공 확률이나 실제 수익이 아니며, 최고 점수가 낮으면 추천 작물도 적합하지 않을 수 있습니다.")
     target = results[0] if saved_choice == '작물 추천받기' else next(r for r in results if r['작물'] == saved_choice)
-    cards = [("🌱 가장 유리한 작물", results[0]), ("🍂 가장 불리한 작물", results[-1])] if saved_choice == '작물 추천받기' else [("🌱 선택한 작물", target)]
-    result_columns = st.columns(len(cards))
-    for result_col, (heading, item) in zip(result_columns, cards):
-        with result_col, st.container(border=True):
-            st.subheader(f"{heading}: {item['작물']}")
-            st.write(f"**비교 점수 {item['적합도']:.1f} / 100 · 생육 비교 {item['비교 기간']}일**")
-            st.write(f"기간 평균 {item['평균기온']}℃ · 주당 평균 강수 {item['주당 강수량']}mm")
-            for reason in item['이유']:
-                st.write(f"• {reason}")
-            st.caption(f"단기 예보 {item['예보 일수']}일 / 기후 기반 추정 {item['비교 기간']-item['예보 일수']}일")
-    if target['적합도'] < 60:
-        st.error("이번 조건에서는 안내 대상 작물의 점수가 낮습니다. 심는 시기를 바꾸거나 지역 농업기술센터에 확인하세요.")
-    if results[0]['적합도'] == results[-1]['적합도']:
-        st.info("모든 작물의 점수가 같습니다. 순위만으로 작물을 선택하지 마세요.")
-    st.subheader(f"{target['작물']}, 이렇게 준비하세요")
     target_crop = next(c for c in CROPS if c[0] == target['작물'])
-    tips = management(target_crop, outlook)
-    for tip in tips:
-        st.write("• " + tip)
-    st.caption("장기 추정에 따른 준비 안내입니다. 실제 작업 날짜·물의 양·약제 사용을 지시하는 기능은 아닙니다.")
-    st.subheader("언제 심으면 더 유리할까요?")
-    st.write(f"같은 작물 **{target['작물']}**을 선택일·2주 뒤·30일 뒤에 심는 경우를 비교했어요.")
-    st.table(pd.DataFrame(date_options))
-    best_date = max(date_options, key=lambda x: x['점수'])
-    base_score = date_options[0]['점수']
-    if best_date['점수'] > base_score:
-        st.success(f"세 날짜 중 {best_date['심을 날짜']:%Y년 %m월 %d일}이 {best_date['점수']:.1f}점으로 가장 유리합니다. 선택일보다 {best_date['점수']-base_score:.1f}점 높아요.")
+    st.divider()
+    st.subheader(f"{city} · {start:%Y년 %m월 %d일} 심기")
+    cards = [("추천 작물", results[0]), ("피할 작물", results[-1])] if saved_choice == '작물 추천받기' else [("선택한 작물", target)]
+    for col, (heading, item) in zip(st.columns(len(cards)), cards):
+        with col, st.container(border=True):
+            st.subheader(f"{heading} · {item['작물']}")
+            st.metric("기후 적합도", f"{item['적합도']:.0f} / 100점")
+            st.write(f"**{'심기 불리해요' if item['적합도'] < 60 else '비교적 잘 맞아요'}**")
+            st.write(f"평균 {item['평균기온']}℃ · 비교 {item['비교 기간']}일")
+    if target['적합도'] == 0:
+        st.warning("0점은 오류가 아니에요. 이 시기의 기온·비가 작물 조건에 맞지 않아요.")
+    elif target['적합도'] < 60:
+        st.warning("지금 심기에는 불리해요. 시기 변경을 검토하세요.")
+    cold = bool((outlook.iloc[:target_crop[1]][COLS[1]] < target_crop[4]).any())
+    hot = bool((outlook.iloc[:target_crop[1]][COLS[2]] > target_crop[5]).any())
+    rain = float(outlook.iloc[:target_crop[1]][COLS[3]].mean()*7)
+    short_tips = []
+    if cold: short_tips.append("추위 주의 · 심는 시기 조정 / 보온 준비")
+    if hot: short_tips.append("더위 주의 · 차광 / 수분 점검")
+    short_tips.append("비 부족 · 물 공급 준비" if rain < target_crop[6] else "비 많음 · 배수로 점검" if rain > target_crop[7] else "흙의 수분 · 직접 확인")
+    st.subheader("관리 핵심")
+    for tip in short_tips[:3]:
+        st.write("**• " + tip + "**")
+    st.subheader("심는 날짜 비교")
+    for col, r in zip(st.columns(3), date_options):
+        with col:
+            st.metric(f"{r['심을 날짜']:%m월 %d일}", f"{r['점수']:.0f}점")
+    best_date = max(date_options, key=lambda x:x['점수'])
+    if best_date['점수'] > date_options[0]['점수']:
+        st.success(f"세 날짜 중 {best_date['심을 날짜']:%m월 %d일}이 가장 유리해요.")
+    elif all(r['점수']==0 for r in date_options):
+        st.warning("세 날짜 모두 불리해요. 더 따뜻한 계절을 검토하세요." if cold else "세 날짜 모두 불리해요. 다른 계절을 검토하세요.")
     else:
-        st.info("비교한 세 날짜 중 선택한 날보다 점수가 더 높은 날은 없습니다. 동점은 우열이 없어요.")
-    st.caption("전체 날짜의 최적해가 아닌 세 날짜 비교입니다. 예보/추정 구성과 비교 기간이 날짜마다 달라지며, 높은 점수도 재배 성공을 보장하지 않습니다.")
-    lines = ["농사 날씨 길잡이 · 결과 요약", f"지역: {city} / 심을 날짜: {start:%Y-%m-%d}",
-             f"분석 방식: {saved_choice} / 기온 가정: {scenario}",
-             f"안내 작물: {target['작물']} · {target['적합도']:.1f}점 / 100점",
-             f"생육 비교: {target['비교 기간']}일 · 단기 예보 {target['예보 일수']}일, 나머지는 기후 추정"]
-    if saved_choice == '작물 추천받기':
-        lines += [f"가장 불리한 작물: {results[-1]['작물']} ({results[-1]['적합도']:.1f}점)"]
-    lines += ['선정 이유'] + target['이유'] + ['관리 준비 사항'] + tips
-    lines += ['심는 날짜 비교 (같은 작물)'] + [f"{r['심을 날짜']:%Y-%m-%d}: {r['점수']:.1f}점" for r in date_options]
-    lines += [f"과거 기후 기준: {year-5}~{year-1}년 / 자료: Open-Meteo",
-              "장기 일별 예보가 아닌 교육용 기후 비교입니다. 실제 농사 전 지역 농업기술센터에 확인하세요."]
-    if note:
-        lines.append(note)
-    if city == '독도':
-        lines.append('독도는 해상 격자 기후 참고용입니다. 실제 재배 판단에 사용하지 마세요.')
-    st.subheader("결과를 저장해 두세요")
+        st.info("선택한 날보다 더 좋은 날짜는 없어요. 동점은 우열이 없어요.")
+    lines = ['농사 날씨 길잡이',f'{city} · {start:%Y-%m-%d}',f"{target['작물']} · {target['적합도']:.0f}점", '관리 핵심',*short_tips,'심는 날짜 비교']
+    lines += [f"{r['심을 날짜']:%Y-%m-%d} · {r['점수']:.0f}점" for r in date_options]
+    lines += ['과거 기후 기반 교육용 비교 · 실제 장기 날씨 예측 아님',f'과거 자료 {year-5}~{year-1} · Open-Meteo']
+    st.subheader("결과 저장")
     try:
-        png = result_image(lines)
-        st.download_button("결과 한 장 저장 (이미지)", png, file_name=f"농사결과_{city}_{start}.png", mime="image/png", use_container_width=True)
-    except (ValueError, OSError) as exc:
-        st.warning(str(exc))
-    st.download_button("글로 저장하기", '\n'.join(lines).encode('utf-8-sig'), file_name=f"농사결과_{start}.txt", mime="text/plain", use_container_width=True)
-    with st.expander("전체 작물 비교 보기"):
-        table = pd.DataFrame([{"작물": r['작물'], "점수(100점)": r['적합도'], "비교 기간(일)": r['비교 기간'], "평균기온(℃)": r['평균기온'], "주당 강수(mm)": r['주당 강수량']} for r in results])
-        st.table(table)
-        st.caption("작물별 일반적인 생육 기간을 단순화해 서로 다른 기간을 비교합니다. 동점은 우열이 없습니다.")
-    with st.expander("월별 기온과 비 보기"):
-        tmp = outlook.copy()
-        tmp['월'] = pd.to_datetime(tmp['날짜']).dt.strftime('%Y년 %m월')
-        monthly = tmp.groupby('월').agg(평균기온=(COLS[0], 'mean'), 기간강수량=(COLS[3], 'sum'), 비교일수=('날짜', 'count'))
-        st.table(monthly.round(1).rename(columns={'평균기온': '평균기온(℃)', '기간강수량': '해당 기간 강수량(mm)', '비교일수': '비교 일수'}))
-        st.caption("첫 달과 마지막 달은 일부 날짜만 포함합니다. 장기 값은 예보가 아니라 과거 기후 기반 추정입니다.")
+        st.download_button("이미지 저장", result_image(lines), file_name=f"농사결과_{start}.png", mime="image/png", use_container_width=True)
+    except (ValueError,OSError) as exc:
+        st.warning("이미지 저장을 준비하지 못했어요. 글로 저장을 이용하세요.")
+    st.download_button("글로 저장", '\n'.join(lines).encode('utf-8-sig'), file_name=f"농사결과_{start}.txt", mime="text/plain", use_container_width=True)
+    with st.expander("자세히 보기 · 전체 순위 / 관리 / 자료"):
+        st.table(pd.DataFrame([{'작물':r['작물'],'점수':r['적합도']} for r in results]))
+        for tip in management(target_crop,outlook): st.write('• '+tip)
+        st.write(f"단기 예보 {target['예보 일수']}일 · 나머지는 과거 기후 기반 추정")
+        if note: st.write(note)
+        if city == '독도': st.warning('독도는 해상 기후 참고용입니다. 실제 재배 판단에 사용하지 마세요.')
+    st.caption("교육용 기후 비교입니다. 실제 재배 전 지역 농업기술센터에 확인하세요.")
 
 with st.expander("계산 방법과 꼭 알아둘 점"):
     st.write("최근 5개 완결 연도의 같은 월·일 기온과 강수량을 평균합니다. 단기 예보가 있는 날짜는 그 예보를 사용하고, 나머지는 과거 평균을 사용합니다. ±2℃ 선택은 장기 추정값에만 적용하는 사용자의 가정이며 공식 기후 전망이 아닙니다.")
