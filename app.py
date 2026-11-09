@@ -7,6 +7,8 @@ GitHub에 app.py / requirements.txt 업로드 후 Streamlit Community Cloud로 �
 from __future__ import annotations
 
 import calendar
+import io
+from PIL import Image, ImageDraw, ImageFont
 from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
@@ -139,6 +141,78 @@ def score_crop(crop, outlook):
             "예보 일수": int((frame['자료'] == '단기 예보').sum()), "이유": reasons}
 
 
+def management(crop, outlook):
+    name, days, lo, hi, cold, hot, rain_lo, rain_hi = crop
+    period = outlook.iloc[:days]
+    tips = []
+    if (period[COLS[1]] < cold).any():
+        tips.append("보온 준비: 저온 주의 조건이 있습니다. 심기 직전 예보를 확인하고 보온 덮개나 심는 시기 조정을 검토하세요.")
+    if (period[COLS[2]] > hot).any():
+        tips.append("더위 대비: 고온 주의 조건이 있습니다. 토양 수분을 살피고 작물에 맞는 차광·환기 방법을 확인하세요.")
+    weekly = float(period[COLS[3]].mean() * 7)
+    if weekly < rain_lo:
+        tips.append("물주기 준비: 비가 적은 조건입니다. 물 공급 방법을 준비하되, 실제 물주기는 흙의 수분과 가까운 예보를 보고 결정하세요.")
+    elif weekly > rain_hi:
+        tips.append("배수 준비: 비가 많은 조건입니다. 물길과 배수로를 점검하고 밭에 물이 고이지 않도록 준비하세요.")
+    else:
+        tips.append("수분 점검: 평균 강수는 비교 범위 안이지만, 비가 고르게 오지는 않습니다. 밭의 마름과 물 고임을 직접 확인하세요.")
+    basics = {
+        "상추": "잎과 흙의 상태를 자주 보고, 잎을 수확할 때 생장점이 상하지 않도록 관리하세요.",
+        "시금치": "씨앗이 마르지 않도록 발아기 수분을 살피고, 밀식하면 솎아 주는 계획을 세우세요.",
+        "무": "뿌리가 자랄 공간을 확보하고, 너무 빽빽한 포기는 적절히 솎아 주세요.",
+        "배추": "잎 뒷면의 해충과 생장 상태를 자주 살피고, 결구기에 수분이 크게 들쭉날쭉하지 않도록 점검하세요.",
+        "감자": "건전한 씨감자를 준비하고, 자라는 감자가 햇빛에 노출되지 않도록 흙덮기 상태를 점검하세요.",
+        "옥수수": "쓰러짐에 대비해 뿌리 주변 흙과 지지 상태를 살피고, 꽃이 피는 무렵 수분 상태를 점검하세요.",
+        "고구마": "건전한 묘를 준비하고, 심은 직후 뿌리가 자리 잡는 동안 토양 수분을 살피세요.",
+        "콩": "물 고임과 쓰러짐을 점검하고, 꽃과 꼬투리가 생기는 동안 수분 상태를 자주 살피세요.",
+    }
+    tips.append("작물 관리: " + basics[name])
+    tips.append("관리 안내는 교육용 준비 사항입니다. 품종·토양·생육 단계에 맞는 방법은 지역 농업기술센터에 확인하세요.")
+    return tips
+
+
+@st.cache_data(ttl=604800, show_spinner=False)
+def korean_font_bytes():
+    response = requests.get('https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Regular.ttf', timeout=20)
+    response.raise_for_status()
+    return response.content
+
+
+def result_image(lines):
+    # Fonts are bundled inside Pillow's host system, not fetched from the internet.
+    candidates = [Path('/usr/share/fonts/truetype/nanum/NanumGothic.ttf'),
+                  Path('/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf'),
+                  Path('C:/Windows/Fonts/malgun.ttf'),
+                  Path('/System/Library/Fonts/AppleSDGothicNeo.ttc')]
+    candidates += list(Path('/usr/share/fonts').rglob('*NanumGothic*.ttf')) if Path('/usr/share/fonts').exists() else []
+    font_path = next((f for f in candidates if f.exists()), None)
+    if font_path is None:
+        try:
+            font_data = korean_font_bytes()
+            font = ImageFont.truetype(io.BytesIO(font_data), 29)
+        except (requests.RequestException, OSError, ValueError) as exc:
+            raise ValueError('이미지용 한글 글꼴을 불러오지 못했습니다. 아래 글로 저장하기를 이용해 주세요.') from exc
+    else:
+        font = ImageFont.truetype(str(font_path), 29)
+    probe = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+    wrapped = []
+    for line in lines:
+        current = ''
+        for char in line:
+            if probe.textlength(current + char, font=font) > 1000:
+                wrapped.append(current); current = char
+            else:
+                current += char
+        wrapped.append(current)
+    image = Image.new('RGB', (1120, 100 + len(wrapped)*47), '#f5f4e9')
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((30, 25, 1090, image.height-25), radius=20, fill='#fffef7', outline='#c7ccb8', width=2)
+    for i, line in enumerate(wrapped):
+        draw.text((60, 50+i*47), line, font=font, fill='#20251d')
+    buffer = io.BytesIO(); image.save(buffer, format='PNG')
+    return buffer.getvalue()
+
+
 st.markdown("""<style>
 :root {color-scheme:light;}
 .stApp, [data-testid="stAppViewContainer"] {background:#f5f4e9;color:#20251d;}
@@ -161,7 +235,25 @@ input {color:#20251d!important;-webkit-text-fill-color:#20251d!important;font-si
 [data-testid="stCaptionContainer"] p {font-size:15px!important;color:#57614e!important;}
 [data-testid="stRadio"] label p {font-size:18px!important;}
 .stButton button, [data-testid="stFormSubmitButton"] button {background:#365a32!important;color:#ffffff!important;border:0!important;min-height:58px;border-radius:12px;font-size:20px!important;font-weight:700;}
-button[kind="primary"] p {color:white!important;}
+/* Explicit widget colors also cover Streamlit dark-theme nested elements. */
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stSelectbox"] [data-baseweb="select"] > div > div,
+[data-testid="stDateInput"] [data-baseweb="input"],
+[data-testid="stDateInput"] [data-baseweb="input"] > div {
+background:#30332b!important;color:#ffffff!important;
+}
+[data-testid="stSelectbox"] [data-baseweb="select"] div,
+[data-testid="stSelectbox"] [data-baseweb="select"] span,
+[data-testid="stSelectbox"] [data-baseweb="select"] input,
+[data-testid="stDateInput"] input {
+color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;
+}
+[data-testid="stSelectbox"] svg, [data-testid="stDateInput"] svg {color:#ffffff!important;fill:currentColor;}
+[data-testid="stFormSubmitButton"] button *, .stButton button *,
+button[kind="primary"] *, button[data-testid="stBaseButton-primaryFormSubmit"] * {
+color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;
+}
+
 [data-testid="stExpander"] {background:#fffef7;color:#20251d;border-color:#c7ccb8;border-radius:12px;}
 [data-testid="stExpander"] summary p {color:#20251d!important;}
 [data-testid="stVerticalBlockBorderWrapper"]>div {border-color:#c7ccb8!important;border-radius:18px;}
@@ -193,6 +285,8 @@ with st.form("settings"):
         st.caption("날짜 칸을 누르면 달력이 열려요. 선택한 날부터 비교합니다.")
     with climate_col:
         scenario = st.radio("③ 앞으로의 기온 가정", ["최근 5년과 비슷", "조금 더 따뜻함 (+2℃)", "조금 더 서늘함 (-2℃)"], horizontal=False)
+    crop_choice = st.selectbox("④ 관심 작물 (선택사항)", ["작물 추천받기"] + [c[0] for c in CROPS])
+    st.caption("잘 모르겠다면 추천받기를 그대로 두세요. 작물을 고르면 해당 작물의 관리 방법을 안내해 드려요.")
     run = st.form_submit_button("우리 밭에 맞는 작물 알아보기 →", type="primary", use_container_width=True)
 st.caption("가까운 날은 단기 예보, 먼 날은 최근 5년 기후를 활용합니다. 몇 달 뒤 실제 날씨를 정확히 예측하는 서비스는 아닙니다.")
 
@@ -213,14 +307,22 @@ if run:
                     note = "단기 예보를 가져오지 못해 전 기간을 과거 기후 기반으로 비교했습니다."
             outlook = build_outlook(normal, counts, short, start, 120, adjustment)
             results = sorted([score_crop(c, outlook) for c in CROPS], key=lambda r: r['적합도'], reverse=True)
-            st.session_state['analysis'] = (city, start, scenario, results, outlook, note, today.year)
+            target_name = results[0]['작물'] if crop_choice == '작물 추천받기' else crop_choice
+            target_crop = next(c for c in CROPS if c[0] == target_name)
+            date_options = []
+            for offset in (0, 14, 30):
+                candidate_date = start + timedelta(days=offset)
+                candidate_outlook = build_outlook(normal, counts, short, candidate_date, 120, adjustment)
+                candidate_score = score_crop(target_crop, candidate_outlook)
+                date_options.append({'심을 날짜': candidate_date, '점수': candidate_score['적합도']})
+            st.session_state['analysis'] = (city, start, scenario, results, outlook, note, today.year, crop_choice, date_options)
     except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
         st.error("날씨 자료를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주세요. 임의의 날씨로 대체하지 않습니다.")
         with st.expander("오류 내용 보기"):
             st.code(str(exc))
 
 if 'analysis' in st.session_state:
-    city, start, scenario, results, outlook, note, year = st.session_state['analysis']
+    city, start, scenario, results, outlook, note, year, saved_choice, date_options = st.session_state['analysis']
     st.divider()
     st.subheader(f"{city} · {start.year}년 {start.month}월 {start.day}일 심기")
     if city == "독도":
@@ -229,8 +331,10 @@ if 'analysis' in st.session_state:
     if note:
         st.warning(note)
     st.warning("점수는 아래 8개 작물 사이의 교육용 비교 지수입니다. 수확 성공 확률이나 실제 수익이 아니며, 최고 점수가 낮으면 추천 작물도 적합하지 않을 수 있습니다.")
-    result_columns = st.columns(2)
-    for result_col, (heading, item) in zip(result_columns, [("🌱 가장 유리한 작물", results[0]), ("🍂 가장 불리한 작물", results[-1])]):
+    target = results[0] if saved_choice == '작물 추천받기' else next(r for r in results if r['작물'] == saved_choice)
+    cards = [("🌱 가장 유리한 작물", results[0]), ("🍂 가장 불리한 작물", results[-1])] if saved_choice == '작물 추천받기' else [("🌱 선택한 작물", target)]
+    result_columns = st.columns(len(cards))
+    for result_col, (heading, item) in zip(result_columns, cards):
         with result_col, st.container(border=True):
             st.subheader(f"{heading}: {item['작물']}")
             st.write(f"**비교 점수 {item['적합도']:.1f} / 100 · 생육 비교 {item['비교 기간']}일**")
@@ -238,10 +342,47 @@ if 'analysis' in st.session_state:
             for reason in item['이유']:
                 st.write(f"• {reason}")
             st.caption(f"단기 예보 {item['예보 일수']}일 / 기후 기반 추정 {item['비교 기간']-item['예보 일수']}일")
-    if results[0]['적합도'] < 60:
-        st.error("이번 조건에서는 최고 점수도 낮습니다. 심는 시기를 바꾸거나 지역 농업기술센터에 확인하세요.")
+    if target['적합도'] < 60:
+        st.error("이번 조건에서는 안내 대상 작물의 점수가 낮습니다. 심는 시기를 바꾸거나 지역 농업기술센터에 확인하세요.")
     if results[0]['적합도'] == results[-1]['적합도']:
         st.info("모든 작물의 점수가 같습니다. 순위만으로 작물을 선택하지 마세요.")
+    st.subheader(f"{target['작물']}, 이렇게 준비하세요")
+    target_crop = next(c for c in CROPS if c[0] == target['작물'])
+    tips = management(target_crop, outlook)
+    for tip in tips:
+        st.write("• " + tip)
+    st.caption("장기 추정에 따른 준비 안내입니다. 실제 작업 날짜·물의 양·약제 사용을 지시하는 기능은 아닙니다.")
+    st.subheader("언제 심으면 더 유리할까요?")
+    st.write(f"같은 작물 **{target['작물']}**을 선택일·2주 뒤·30일 뒤에 심는 경우를 비교했어요.")
+    st.dataframe(pd.DataFrame(date_options), hide_index=True, use_container_width=True)
+    best_date = max(date_options, key=lambda x: x['점수'])
+    base_score = date_options[0]['점수']
+    if best_date['점수'] > base_score:
+        st.success(f"세 날짜 중 {best_date['심을 날짜']:%Y년 %m월 %d일}이 {best_date['점수']:.1f}점으로 가장 유리합니다. 선택일보다 {best_date['점수']-base_score:.1f}점 높아요.")
+    else:
+        st.info("비교한 세 날짜 중 선택한 날보다 점수가 더 높은 날은 없습니다. 동점은 우열이 없어요.")
+    st.caption("전체 날짜의 최적해가 아닌 세 날짜 비교입니다. 예보/추정 구성과 비교 기간이 날짜마다 달라지며, 높은 점수도 재배 성공을 보장하지 않습니다.")
+    lines = ["농사 날씨 길잡이 · 결과 요약", f"지역: {city} / 심을 날짜: {start:%Y-%m-%d}",
+             f"분석 방식: {saved_choice} / 기온 가정: {scenario}",
+             f"안내 작물: {target['작물']} · {target['적합도']:.1f}점 / 100점",
+             f"생육 비교: {target['비교 기간']}일 · 단기 예보 {target['예보 일수']}일, 나머지는 기후 추정"]
+    if saved_choice == '작물 추천받기':
+        lines += [f"가장 불리한 작물: {results[-1]['작물']} ({results[-1]['적합도']:.1f}점)"]
+    lines += ['선정 이유'] + target['이유'] + ['관리 준비 사항'] + tips
+    lines += ['심는 날짜 비교 (같은 작물)'] + [f"{r['심을 날짜']:%Y-%m-%d}: {r['점수']:.1f}점" for r in date_options]
+    lines += [f"과거 기후 기준: {year-5}~{year-1}년 / 자료: Open-Meteo",
+              "장기 일별 예보가 아닌 교육용 기후 비교입니다. 실제 농사 전 지역 농업기술센터에 확인하세요."]
+    if note:
+        lines.append(note)
+    if city == '독도':
+        lines.append('독도는 해상 격자 기후 참고용입니다. 실제 재배 판단에 사용하지 마세요.')
+    st.subheader("결과를 저장해 두세요")
+    try:
+        png = result_image(lines)
+        st.download_button("결과 한 장 저장 (이미지)", png, file_name=f"농사결과_{city}_{start}.png", mime="image/png", use_container_width=True)
+    except (ValueError, OSError) as exc:
+        st.warning(str(exc))
+    st.download_button("글로 저장하기", '\n'.join(lines).encode('utf-8-sig'), file_name=f"농사결과_{start}.txt", mime="text/plain", use_container_width=True)
     with st.expander("전체 작물 비교 보기"):
         table = pd.DataFrame([{"작물": r['작물'], "점수(100점)": r['적합도'], "비교 기간(일)": r['비교 기간'], "평균기온(℃)": r['평균기온'], "주당 강수(mm)": r['주당 강수량']} for r in results])
         st.dataframe(table, hide_index=True, use_container_width=True)
