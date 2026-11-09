@@ -130,37 +130,39 @@ def build_outlook(normal, counts, short, start, days, adjustment):
     return pd.DataFrame(rows)
 
 
+def facility_outlook(outlook, method, warming):
+    frame = outlook.copy()
+    if method != '노지':
+        for col in COLS[:3]:
+            frame[col] += warming
+    return frame
+
+
 def score_crop(crop, outlook):
+    # Transparent educational screening, not calibrated agronomic probabilities.
     name, days, lo, hi, cold, hot, rain_lo, rain_hi = crop
     frame = outlook.iloc[:days]
-    t = frame[COLS[0]]
-    # 점수는 확률/수확량이 아니라 명시적인 교육용 비교 지수입니다.
-    deviation = (lo-t).clip(lower=0) + (t-hi).clip(lower=0)
-    temp_fit = float((100-deviation*7).clip(lower=0).mean())
+    initial = frame.iloc[:14]
+    growth = frame.iloc[14:]
+    # Same per-crop temperature band is deliberately retained: no unsupported
+    # germination/soil thresholds are invented. Initial establishment is a proxy.
+    def stage_fit(part):
+        t = part[COLS[0]]
+        return float(((t >= lo) & (t <= hi)).mean())
+    initial_fit, growth_fit = stage_fit(initial), stage_fit(growth)
     cold_fraction = float((frame[COLS[1]] < cold).mean())
     hot_fraction = float((frame[COLS[2]] > hot).mean())
-    weekly_rain = float(frame[COLS[3]].mean()*7)
-    rain_gap = max(rain_lo-weekly_rain, 0, weekly_rain-rain_hi)
-    rain_fit = max(0, 100-rain_gap*2)
-    score = max(0, min(100, .8*temp_fit + .2*rain_fit - 25*cold_fraction - 20*hot_fraction))
-    reasons = []
-    if temp_fit >= 80:
-        reasons.append("평균기온이 설정한 생육 조건에 비교적 잘 맞습니다")
-    else:
-        reasons.append("평균기온이 설정한 생육 조건에서 벗어나는 기간이 있습니다")
-    if cold_fraction >= .1:
-        reasons.append("저온 주의 기준보다 낮은 날이 많아 보온 관리가 필요합니다")
-    if hot_fraction >= .1:
-        reasons.append("고온 주의 기준보다 높은 날이 많아 더위 관리가 필요합니다")
-    if weekly_rain < rain_lo:
-        reasons.append("비가 적을 수 있어 물주기 계획이 필요합니다")
-    elif weekly_rain > rain_hi:
-        reasons.append("비가 많을 수 있어 배수 관리가 필요합니다")
-    else:
-        reasons.append("주당 강수량 평균이 설정한 비교 범위 안에 있습니다")
-    return {"작물": name, "적합도": round(score, 1), "비교 기간": days,
-            "평균기온": round(float(t.mean()), 1), "주당 강수량": round(weekly_rain, 1),
-            "예보 일수": int((frame['자료'] == '단기 예보').sum()), "이유": reasons}
+    risk = max(cold_fraction, hot_fraction)
+    fit = .4*initial_fit + .6*growth_fit
+    # Grade gates make severe exposure impossible to hide behind an average.
+    grade = '불리' if risk >= .3 or fit < .3 else '유리' if fit >= .7 and risk < .1 else '주의'
+    rank = {'불리':0,'주의':1,'유리':2}[grade]*1000 + fit*100 - risk*50
+    return {'작물':name,'적합도':rank,'판정':grade,'초기':initial_fit,'생육':growth_fit,
+            '위험':risk,'비교 기간':days,'평균기온':round(float(frame[COLS[0]].mean()),1),
+            '주당 강수량':round(float(frame[COLS[3]].mean()*7),1),
+            '예보 일수':int((frame['자료']=='단기 예보').sum()),
+            '이유':['초기 14일과 이후 기간의 기온 적합일 비중 및 저온·고온 노출을 비교합니다.']}
+
 
 
 def management(crop, outlook):
@@ -329,7 +331,7 @@ st.markdown("<style>:root{" + ''.join(f"--farm-{key}:{value};" for key,value in 
 st.markdown("""<section class="hero"><div class="eyebrow">농사 날씨 길잡이 · 나의 밭, 나의 계절</div>
 <h1>무엇을 심을까요?<br>날씨에서 답을 찾아요.</h1>
 <p>지역과 심을 날짜를 골라 주세요. 앞으로 자라는 동안의 기온과 비를 살펴, 잘 맞는 작물과 주의할 작물을 알려드려요.</p></section>""", unsafe_allow_html=True)
-st.caption("화면 버전: 밝게 / 어둡게 7 · 작물 28종")
+st.caption("화면 버전: 단계별 판정 8 · 작물 28종")
 today = datetime.now(timezone(timedelta(hours=9))).date()
 with st.form("settings"):
     st.subheader("우리 밭에 맞게 골라 주세요")
@@ -345,6 +347,9 @@ with st.form("settings"):
         scenario = st.radio("③ 앞으로의 기온 가정", ["최근 5년과 비슷", "조금 더 따뜻함 (+2℃)", "조금 더 서늘함 (-2℃)"], horizontal=False)
     crop_choice = st.selectbox("④ 관심 작물 (선택사항)", ["작물 추천받기"] + [c[0] for c in CROPS])
     st.caption("잘 모르겠다면 추천받기를 그대로 두세요. 작물을 고르면 해당 작물의 관리 방법을 안내해 드려요.")
+    method = st.selectbox("⑤ 재배 방식", ["노지", "보온 덮개", "비닐하우스"])
+    warming = st.number_input("시설 내부 기온 상승 가정 (℃)", min_value=0.0, max_value=15.0, value=0.0, step=0.5)
+    st.caption("노지는 0℃로 계산합니다. 시설은 실제 측정값에 맞춰 입력하세요. 일정한 보온 효과를 보장하지 않습니다.")
     run = st.form_submit_button("우리 밭에 맞는 작물 알아보기 →", type="primary", use_container_width=True)
 st.caption("가까운 날은 단기 예보, 먼 날은 최근 5년 기후를 활용합니다. 몇 달 뒤 실제 날씨를 정확히 예측하는 서비스는 아닙니다.")
 
@@ -364,6 +369,7 @@ if run:
                 except (requests.RequestException, ValueError, KeyError, TypeError):
                     note = "단기 예보를 가져오지 못해 전 기간을 과거 기후 기반으로 비교했습니다."
             outlook = build_outlook(normal, counts, short, start, 120, adjustment)
+            outlook = facility_outlook(outlook, method, warming)
             results = sorted([score_crop(c, outlook) for c in CROPS], key=lambda r: r['적합도'], reverse=True)
             target_name = results[0]['작물'] if crop_choice == '작물 추천받기' else crop_choice
             target_crop = next(c for c in CROPS if c[0] == target_name)
@@ -371,31 +377,36 @@ if run:
             for offset in (0, 14, 30):
                 candidate_date = start + timedelta(days=offset)
                 candidate_outlook = build_outlook(normal, counts, short, candidate_date, 120, adjustment)
+                candidate_outlook = facility_outlook(candidate_outlook, method, warming)
                 candidate_score = score_crop(target_crop, candidate_outlook)
-                date_options.append({'심을 날짜': candidate_date, '점수': candidate_score['적합도']})
-            st.session_state['analysis'] = (city, start, scenario, results, outlook, note, today.year, crop_choice, date_options)
+                date_options.append({'심을 날짜': candidate_date, '점수': candidate_score['적합도'], '판정': candidate_score['판정']})
+            st.session_state['analysis'] = (city, start, scenario, results, outlook, note, today.year, crop_choice, date_options, method, warming)
     except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
         st.error("날씨 자료를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 눌러 주세요. 임의의 날씨로 대체하지 않습니다.")
         with st.expander("오류 내용 보기"):
             st.code(str(exc))
 
+if 'analysis' in st.session_state and len(st.session_state['analysis']) != 11:
+    st.session_state.pop('analysis', None)
+
 if 'analysis' in st.session_state:
-    city, start, scenario, results, outlook, note, year, saved_choice, date_options = st.session_state['analysis']
+    city, start, scenario, results, outlook, note, year, saved_choice, date_options, saved_method, saved_warming = st.session_state['analysis']
     target = results[0] if saved_choice == '작물 추천받기' else next(r for r in results if r['작물'] == saved_choice)
     target_crop = next(c for c in CROPS if c[0] == target['작물'])
     st.divider()
     st.subheader(f"{city} · {start:%Y년 %m월 %d일} 심기")
-    cards = [("추천 작물", results[0]), ("피할 작물", results[-1])] if saved_choice == '작물 추천받기' else [("선택한 작물", target)]
+    cards = [("비교적 유리한 작물", results[0]), ("가장 주의할 작물", results[-1])] if saved_choice == '작물 추천받기' else [("선택한 작물", target)]
     for col, (heading, item) in zip(st.columns(len(cards)), cards):
         with col, st.container(border=True):
             st.subheader(f"{heading} · {item['작물']}")
-            st.metric("기후 적합도", f"{item['적합도']:.0f} / 100점")
-            st.write(f"**{'심기 불리해요' if item['적합도'] < 60 else '비교적 잘 맞아요'}**")
+            st.metric("기후 조건", item["판정"])
+            st.write(f"초기 2주 적합일 {item['초기']:.0%} · 이후 {item['생육']:.0%}")
             st.write(f"평균 {item['평균기온']}℃ · 비교 {item['비교 기간']}일")
-    if target['적합도'] == 0:
-        st.warning("0점은 오류가 아니에요. 이 시기의 기온·비가 작물 조건에 맞지 않아요.")
-    elif target['적합도'] < 60:
-        st.warning("지금 심기에는 불리해요. 시기 변경을 검토하세요.")
+    st.caption(f"{saved_method} · 기온 상승 가정 {0 if saved_method == '노지' else saved_warming}℃")
+    if saved_choice == '작물 추천받기' and not any(r['판정']=='유리' for r in results):
+        st.warning("뚜렷하게 유리한 작물이 없어요. 심는 시기 조정을 먼저 검토하세요.")
+    elif target['판정'] == '불리':
+        st.warning("선택한 조건에서는 불리해요. 시기나 재배 방식을 검토하세요.")
     cold = bool((outlook.iloc[:target_crop[1]][COLS[1]] < target_crop[4]).any())
     hot = bool((outlook.iloc[:target_crop[1]][COLS[2]] > target_crop[5]).any())
     rain = float(outlook.iloc[:target_crop[1]][COLS[3]].mean()*7)
@@ -403,22 +414,27 @@ if 'analysis' in st.session_state:
     if cold: short_tips.append("추위 주의 · 심는 시기 조정 / 보온 준비")
     if hot: short_tips.append("더위 주의 · 차광 / 수분 점검")
     short_tips.append("비 부족 · 물 공급 준비" if rain < target_crop[6] else "비 많음 · 배수로 점검" if rain > target_crop[7] else "흙의 수분 · 직접 확인")
+    if saved_method == '비닐하우스':
+        short_tips = [t for t in short_tips if not t.startswith(('비 부족', '비 많음', '흙의 수분'))]
+        short_tips += ["하우스 내부 · 환기와 토양 수분 직접 점검"]
+    elif saved_method == '보온 덮개':
+        short_tips += ["덮개 안 실제 온도·수분 확인"]
     st.subheader("관리 핵심")
     for tip in short_tips[:3]:
         st.write("**• " + tip + "**")
     st.subheader("심는 날짜 비교")
     for col, r in zip(st.columns(3), date_options):
         with col:
-            st.metric(f"{r['심을 날짜']:%m월 %d일}", f"{r['점수']:.0f}점")
+            st.metric(f"{r['심을 날짜']:%m월 %d일}", r["판정"])
     best_date = max(date_options, key=lambda x:x['점수'])
     if best_date['점수'] > date_options[0]['점수']:
         st.success(f"세 날짜 중 {best_date['심을 날짜']:%m월 %d일}이 가장 유리해요.")
-    elif all(r['점수']==0 for r in date_options):
+    elif all(r['판정']=='불리' for r in date_options):
         st.warning("세 날짜 모두 불리해요. 더 따뜻한 계절을 검토하세요." if cold else "세 날짜 모두 불리해요. 다른 계절을 검토하세요.")
     else:
         st.info("선택한 날보다 더 좋은 날짜는 없어요. 동점은 우열이 없어요.")
-    lines = ['농사 날씨 길잡이',f'{city} · {start:%Y-%m-%d}',f"{target['작물']} · {target['적합도']:.0f}점", '관리 핵심',*short_tips,'심는 날짜 비교']
-    lines += [f"{r['심을 날짜']:%Y-%m-%d} · {r['점수']:.0f}점" for r in date_options]
+    lines = ['농사 날씨 길잡이',f'{city} · {start:%Y-%m-%d}',f"{target['작물']} · {target['판정']} / {saved_method}", '관리 핵심',*short_tips,'심는 날짜 비교']
+    lines += [f"{r['심을 날짜']:%Y-%m-%d} · {r['판정']}" for r in date_options]
     lines += ['과거 기후 기반 교육용 비교 · 실제 장기 날씨 예측 아님',f'과거 자료 {year-5}~{year-1} · Open-Meteo']
     st.subheader("결과 저장")
     try:
@@ -427,18 +443,19 @@ if 'analysis' in st.session_state:
         st.warning("이미지 저장을 준비하지 못했어요. 글로 저장을 이용하세요.")
     st.download_button("글로 저장", '\n'.join(lines).encode('utf-8-sig'), file_name=f"농사결과_{start}.txt", mime="text/plain", use_container_width=True)
     with st.expander("자세히 보기 · 전체 순위 / 관리 / 자료"):
-        st.table(pd.DataFrame([{'작물':r['작물'],'점수':r['적합도']} for r in results]))
-        for tip in management(target_crop,outlook): st.write('• '+tip)
+        st.table(pd.DataFrame([{'작물':r['작물'],'판정':r['판정']} for r in results]))
+        for tip in management(target_crop,outlook):
+            if saved_method != '비닐하우스' or not tip.startswith(('물주기 준비:', '배수 준비:', '수분 점검:')): st.write('• '+tip)
         st.write(f"단기 예보 {target['예보 일수']}일 · 나머지는 과거 기후 기반 추정")
         if note: st.write(note)
         if city == '독도': st.warning('독도는 해상 기후 참고용입니다. 실제 재배 판단에 사용하지 마세요.')
     st.caption("교육용 기후 비교입니다. 실제 재배 전 지역 농업기술센터에 확인하세요.")
 
-with st.expander("계산 방법과 꼭 알아둘 점"):
-    st.write("최근 5개 완결 연도의 같은 월·일 기온과 강수량을 평균합니다. 단기 예보가 있는 날짜는 그 예보를 사용하고, 나머지는 과거 평균을 사용합니다. ±2℃ 선택은 장기 추정값에만 적용하는 사용자의 가정이며 공식 기후 전망이 아닙니다.")
-    st.write("점수 = 기온 적합도 80% + 강수 적합도 20% − 저온·고온 주의일 비중에 따른 감점. 기온은 적정 범위에서 1℃ 벗어날 때 7점, 주당 강수는 비교 범위에서 1mm 벗어날 때 2점 감점합니다. 저온·고온 감점 계수는 각각 25와 20이며 최종 점수는 0~100점입니다.")
-    st.write("아래 기준은 앱 작동을 설명하기 위한 교육용 가정입니다. 작물별 기간은 실제 전체 생육 기간이 아니라 파종·정식 후 첫 수확 등을 단순화한 비교 구간입니다. 장기 재배 작물의 전 기간을 평가하지 않습니다. 공식 재배 권장 기준으로 검증되지 않았습니다. 파종·정식 구분, 품종, 토양, 일조, 시설, 관수, 병해충, 생육 단계는 반영하지 않았습니다. 과거 평균 최저·최고기온은 실제 한파·폭염 극값을 완화하므로 위험을 과소평가할 수 있습니다.")
-    st.table(pd.DataFrame([{'작물': c[0], '기간(일)': c[1], '적정 평균기온(℃)': f'{c[2]}~{c[3]}', '저온 주의(℃ 미만)': c[4], '고온 주의(℃ 초과)': c[5], '주당 강수 비교(mm)': f'{c[6]}~{c[7]}'} for c in CROPS]))
-    st.write("실제 재배 결정 전에는 지역 농업기술센터 또는 농사로의 품종별 재배 정보를 확인하세요. 대표 지점 자료이므로 같은 지역 안에서도 고도·지형에 따라 달라집니다.")
+with st.expander("판정 기준과 한계"):
+    st.write("검증된 농업 진단이 아닌 교육용 선별 기준입니다. 초기 14일(활착 참고)과 이후 기간을 나누되, 둘 다 같은 작물별 적정 평균기온 범위를 사용합니다. 발아·토양온도·정식 기준을 따로 검증한 모델이 아닙니다.")
+    st.write("적합일 비중 = 초기 40% + 이후 60%. 유리: 적합일 비중 70% 이상이고 저온·고온 노출 각각 10% 미만. 불리: 적합일 비중 30% 미만이거나 저온 또는 고온 노출 30% 이상. 나머지는 주의입니다. 이 수치는 교육용 가정입니다. 같은 등급에서도 적합일과 위험 노출로 상대 비교합니다.")
+    st.write("비는 관수·배수 준비에만 사용하며 판정에서 제외합니다. 하우스 안에 실외 강수를 적용하지 않습니다. 시설은 입력한 기온 차이를 모든 날짜의 기온에 더하는 시나리오일 뿐 실제 보온·환기 효과 예측이 아닙니다. 광량·습도·토양·품종·병해충은 미반영입니다.")
+    st.write("장기 자료는 최근 5년 같은 날짜의 평균입니다. 실제 한파·폭염·연속 강우 위험은 과소평가할 수 있습니다. 날짜 비교는 같은 작물의 세 날짜에 한정합니다. 작물 기간은 단순화된 비교 구간이며 수확일 예측이 아닙니다.")
+    st.table(pd.DataFrame([{'작물':c[0],'비교일':c[1],'적정 평균기온':f'{c[2]}~{c[3]}℃','저온 주의':c[4],'고온 주의':c[5]} for c in CROPS]))
 st.caption("날씨 자료: Open-Meteo · 기온/강수 재분석 자료와 단기 예보 사용 · 인터넷 연결 필요")
 st.markdown("[날씨 자료 및 이용 조건](https://open-meteo.com/) · [과거 날씨 자료 설명](https://open-meteo.com/en/docs/historical-weather-api) · [농사로 재배 정보](https://www.nongsaro.go.kr/)")
