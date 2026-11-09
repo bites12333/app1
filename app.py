@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import calendar
 import io
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from datetime import date, datetime, timedelta, timezone
 
@@ -383,11 +384,32 @@ input:not([type="radio"]):not([type="checkbox"]),
 [data-testid="stDateInput"] svg,
 [data-baseweb="select"] svg {fill:currentColor!important;}
 
+
+/* V5: readable notices, static tables and save controls in light/dark themes. */
+[data-testid="stAlert"],
+[data-testid="stAlert"] > div,
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"],
+[data-testid="stAlert"] [data-testid="stMarkdownContainer"] * {
+ background:#edf3e7!important;color:#172315!important;
+ -webkit-text-fill-color:#172315!important;
+}
+[data-testid="stAlert"] {border:1px solid #9bad8a!important;}
+[data-testid="stTable"], [data-testid="stTable"] *,
+[data-testid="stTable"] table, [data-testid="stTable"] th,
+[data-testid="stTable"] td {
+ background:#ffffff!important;color:#111111!important;
+ -webkit-text-fill-color:#111111!important;
+ border-color:#c3ccb9!important;
+}
+[data-testid="stTable"] th {background:#e8efdf!important;}
+[data-testid="stTable"] {overflow-x:auto;}
+[data-testid="stCaptionContainer"] p {color:#46513d!important;}
+
 </style>""", unsafe_allow_html=True)
 st.markdown("""<section class="hero"><div class="eyebrow">농사 날씨 길잡이 · 나의 밭, 나의 계절</div>
 <h1>무엇을 심을까요?<br>날씨에서 답을 찾아요.</h1>
 <p>지역과 심을 날짜를 골라 주세요. 앞으로 자라는 동안의 기온과 비를 살펴, 잘 맞는 작물과 주의할 작물을 알려드려요.</p></section>""", unsafe_allow_html=True)
-st.caption("화면 버전: 흰색 입력창 4 · 작물 28종")
+st.caption("화면 버전: 화면 개선 5 · 작물 28종")
 today = datetime.now(timezone(timedelta(hours=9))).date()
 with st.form("settings"):
     st.subheader("우리 밭에 맞게 골라 주세요")
@@ -470,7 +492,7 @@ if 'analysis' in st.session_state:
     st.caption("장기 추정에 따른 준비 안내입니다. 실제 작업 날짜·물의 양·약제 사용을 지시하는 기능은 아닙니다.")
     st.subheader("언제 심으면 더 유리할까요?")
     st.write(f"같은 작물 **{target['작물']}**을 선택일·2주 뒤·30일 뒤에 심는 경우를 비교했어요.")
-    st.dataframe(pd.DataFrame(date_options), hide_index=True, use_container_width=True)
+    st.table(pd.DataFrame(date_options))
     best_date = max(date_options, key=lambda x: x['점수'])
     base_score = date_options[0]['점수']
     if best_date['점수'] > base_score:
@@ -501,20 +523,20 @@ if 'analysis' in st.session_state:
     st.download_button("글로 저장하기", '\n'.join(lines).encode('utf-8-sig'), file_name=f"농사결과_{start}.txt", mime="text/plain", use_container_width=True)
     with st.expander("전체 작물 비교 보기"):
         table = pd.DataFrame([{"작물": r['작물'], "점수(100점)": r['적합도'], "비교 기간(일)": r['비교 기간'], "평균기온(℃)": r['평균기온'], "주당 강수(mm)": r['주당 강수량']} for r in results])
-        st.dataframe(table, hide_index=True, use_container_width=True)
+        st.table(table)
         st.caption("작물별 일반적인 생육 기간을 단순화해 서로 다른 기간을 비교합니다. 동점은 우열이 없습니다.")
     with st.expander("월별 기온과 비 보기"):
         tmp = outlook.copy()
         tmp['월'] = pd.to_datetime(tmp['날짜']).dt.strftime('%Y년 %m월')
         monthly = tmp.groupby('월').agg(평균기온=(COLS[0], 'mean'), 기간강수량=(COLS[3], 'sum'), 비교일수=('날짜', 'count'))
-        st.dataframe(monthly.round(1).rename(columns={'평균기온': '평균기온(℃)', '기간강수량': '해당 기간 강수량(mm)', '비교일수': '비교 일수'}), use_container_width=True)
+        st.table(monthly.round(1).rename(columns={'평균기온': '평균기온(℃)', '기간강수량': '해당 기간 강수량(mm)', '비교일수': '비교 일수'}))
         st.caption("첫 달과 마지막 달은 일부 날짜만 포함합니다. 장기 값은 예보가 아니라 과거 기후 기반 추정입니다.")
 
 with st.expander("계산 방법과 꼭 알아둘 점"):
     st.write("최근 5개 완결 연도의 같은 월·일 기온과 강수량을 평균합니다. 단기 예보가 있는 날짜는 그 예보를 사용하고, 나머지는 과거 평균을 사용합니다. ±2℃ 선택은 장기 추정값에만 적용하는 사용자의 가정이며 공식 기후 전망이 아닙니다.")
     st.write("점수 = 기온 적합도 80% + 강수 적합도 20% − 저온·고온 주의일 비중에 따른 감점. 기온은 적정 범위에서 1℃ 벗어날 때 7점, 주당 강수는 비교 범위에서 1mm 벗어날 때 2점 감점합니다. 저온·고온 감점 계수는 각각 25와 20이며 최종 점수는 0~100점입니다.")
     st.write("아래 기준은 앱 작동을 설명하기 위한 교육용 가정입니다. 작물별 기간은 실제 전체 생육 기간이 아니라 파종·정식 후 첫 수확 등을 단순화한 비교 구간입니다. 장기 재배 작물의 전 기간을 평가하지 않습니다. 공식 재배 권장 기준으로 검증되지 않았습니다. 파종·정식 구분, 품종, 토양, 일조, 시설, 관수, 병해충, 생육 단계는 반영하지 않았습니다. 과거 평균 최저·최고기온은 실제 한파·폭염 극값을 완화하므로 위험을 과소평가할 수 있습니다.")
-    st.dataframe(pd.DataFrame([{'작물': c[0], '기간(일)': c[1], '적정 평균기온(℃)': f'{c[2]}~{c[3]}', '저온 주의(℃ 미만)': c[4], '고온 주의(℃ 초과)': c[5], '주당 강수 비교(mm)': f'{c[6]}~{c[7]}'} for c in CROPS]), hide_index=True, use_container_width=True)
+    st.table(pd.DataFrame([{'작물': c[0], '기간(일)': c[1], '적정 평균기온(℃)': f'{c[2]}~{c[3]}', '저온 주의(℃ 미만)': c[4], '고온 주의(℃ 초과)': c[5], '주당 강수 비교(mm)': f'{c[6]}~{c[7]}'} for c in CROPS]))
     st.write("실제 재배 결정 전에는 지역 농업기술센터 또는 농사로의 품종별 재배 정보를 확인하세요. 대표 지점 자료이므로 같은 지역 안에서도 고도·지형에 따라 달라집니다.")
 st.caption("날씨 자료: Open-Meteo · 기온/강수 재분석 자료와 단기 예보 사용 · 인터넷 연결 필요")
 st.markdown("[날씨 자료 및 이용 조건](https://open-meteo.com/) · [과거 날씨 자료 설명](https://open-meteo.com/en/docs/historical-weather-api) · [농사로 재배 정보](https://www.nongsaro.go.kr/)")
