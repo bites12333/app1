@@ -2,6 +2,7 @@
 GitHub에 app.py / requirements.txt 업로드 후 Streamlit Community Cloud로 배포.
 인터넷 필요. API 키 불필요. Open-Meteo 무료 비상업 API의 이용 한도/약관 적용.
 장기 계절예보 모델이 아닌 최근 5개 완결 연도 기후 기반 시나리오 앱.
+추가 채소의 기간은 파종/정식/첫 수확을 단순화한 40~120일 비교 구간이며 실제 전 생육 기간이 아닙니다.
 작물 조건은 교육용 단순화 가정이며 지역별 재배 지침이나 수확량 예측이 아님.
 """
 from __future__ import annotations
@@ -41,6 +42,26 @@ CROPS = [
     ("옥수수", 100, 20, 28, 8, 35, 20, 45),
     ("고구마", 120, 20, 28, 10, 35, 15, 40),
     ("콩", 110, 20, 28, 8, 35, 15, 40),
+    ("고추", 120, 20, 28, 10, 35, 15, 40),
+    ("토마토", 110, 18, 26, 8, 33, 15, 40),
+    ("방울토마토", 100, 18, 26, 8, 33, 15, 40),
+    ("오이", 75, 20, 28, 10, 35, 20, 45),
+    ("가지", 110, 22, 28, 12, 35, 15, 40),
+    ("애호박", 80, 18, 26, 8, 33, 20, 45),
+    ("단호박", 110, 18, 26, 8, 33, 15, 40),
+    ("당근", 100, 15, 22, 0, 30, 10, 35),
+    ("열무", 40, 15, 23, 0, 30, 15, 40),
+    ("청경채", 45, 15, 22, 0, 28, 15, 40),
+    ("쑥갓", 50, 15, 22, 0, 28, 15, 35),
+    ("깻잎", 70, 18, 26, 5, 33, 15, 40),
+    ("부추", 80, 15, 24, 0, 30, 15, 40),
+    ("대파", 100, 15, 24, -3, 30, 15, 40),
+    ("쪽파", 60, 12, 22, -3, 28, 10, 35),
+    ("브로콜리", 100, 15, 22, 0, 28, 15, 40),
+    ("양배추", 110, 15, 22, 0, 30, 15, 40),
+    ("케일", 70, 15, 23, -3, 30, 15, 40),
+    ("비트", 80, 15, 23, 0, 30, 10, 35),
+    ("완두콩", 90, 12, 20, -2, 27, 10, 35),
 ]
 DAILY = "temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum"
 COLS = DAILY.split(",")
@@ -166,7 +187,29 @@ def management(crop, outlook):
         "고구마": "건전한 묘를 준비하고, 심은 직후 뿌리가 자리 잡는 동안 토양 수분을 살피세요.",
         "콩": "물 고임과 쓰러짐을 점검하고, 꽃과 꼬투리가 생기는 동안 수분 상태를 자주 살피세요.",
     }
-    tips.append("작물 관리: " + basics[name])
+    basics.update({
+        "고추": "지지대를 준비하고 가지가 쓰러지지 않도록 묶음 상태와 배수 상태를 살피세요.",
+        "토마토": "지지대를 세우고 줄기를 유인하세요. 곁순 관리는 품종과 재배 방식에 맞춰 확인하세요.",
+        "방울토마토": "지지대와 줄기 유인을 준비하고 과실이 갈라지지 않도록 토양 수분의 급격한 변화를 살피세요.",
+        "오이": "덩굴이 자랄 지지망을 준비하고 통풍과 토양 수분을 살피세요.",
+        "가지": "가지와 열매를 지탱할 지지대를 준비하고 잎 뒷면의 해충을 점검하세요.",
+        "애호박": "잎이 겹치지 않을 공간을 확보하고 착과가 잘되는지 관찰하세요.",
+        "단호박": "덩굴이 뻗을 공간을 확보하고 열매가 물 고인 땅에 닿지 않도록 살피세요.",
+        "당근": "흙 속 돌과 굳은 층을 정리하고 발아 후 빽빽한 포기는 적절히 솎아 주세요.",
+        "열무": "발아기 수분과 밀식을 살피고 어린 잎의 해충 피해를 점검하세요.",
+        "청경채": "밀식과 물 고임을 피하고 잎 뒷면의 해충과 꽃대 발생을 살피세요.",
+        "쑥갓": "발아 후 밀식 상태를 살피고 연한 잎과 줄기를 품종에 맞춰 수확하세요.",
+        "깻잎": "잎이 겹쳐 통풍이 나빠지지 않도록 간격과 잎 뒷면을 점검하세요.",
+        "부추": "수확 후 새잎의 생육과 토양 수분을 살피고 포기 주변 잡초를 관리하세요.",
+        "대파": "흙덮기 방법은 재배 방식에 맞춰 확인하고 생장점에 흙이 들어가지 않도록 주의하세요.",
+        "쪽파": "건전한 종구를 준비하고 물 고임과 잎의 병반을 점검하세요.",
+        "브로콜리": "꽃봉오리 발달과 해충을 살피고 수확 시기를 놓치지 않도록 관찰하세요.",
+        "양배추": "결구 상태와 잎 뒷면의 해충을 살피고 수분의 급격한 변화를 점검하세요.",
+        "케일": "잎 뒷면의 해충을 자주 살피고 새잎이 자랄 수 있도록 수확 방법을 확인하세요.",
+        "비트": "뿌리가 자랄 간격을 확보하고 발아 후 빽빽한 포기는 솎아 주세요.",
+        "완두콩": "덩굴성 품종은 지지망을 준비하고 꽃과 꼬투리의 생육을 살피세요.",
+    })
+    tips.append("작물 관리: " + basics.get(name, "생육 상태와 잎 뒷면의 병해충을 살피고, 품종별 심는 간격·지지대·수확 시기를 확인하세요."))
     tips.append("관리 안내는 교육용 준비 사항입니다. 품종·토양·생육 단계에 맞는 방법은 지역 농업기술센터에 확인하세요.")
     return tips
 
@@ -277,10 +320,42 @@ color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;
 [data-testid="stHorizontalBlock"]>[data-testid="stColumn"] {width:100%!important;flex:1 1 100%!important;min-width:0!important;}
 [data-testid="stForm"] {padding:18px;}
 }
+
+/* LIGHT INPUT V3: target actual control surfaces independently of wrapper names. */
+[data-baseweb="select"], [data-baseweb="select"] *,
+[data-baseweb="input"], [data-baseweb="input"] *,
+[data-baseweb="base-input"], [data-baseweb="base-input"] *,
+[data-baseweb="textarea"], [role="combobox"],
+input:not([type="radio"]):not([type="checkbox"]),
+[data-baseweb="popover"] [role="listbox"],
+[data-baseweb="popover"] [role="listbox"] * {
+    background:#ffffff!important;
+    background-color:#ffffff!important;
+    color:#111111!important;
+    -webkit-text-fill-color:#111111!important;
+    caret-color:#111111!important;
+    color-scheme:light!important;
+}
+[data-baseweb="select"] svg, [data-baseweb="input"] svg {
+    fill:#111111!important;color:#111111!important;background:transparent!important;
+}
+[data-testid="stFormSubmitButton"] button,
+[data-testid="stFormSubmitButton"] button *,
+[data-testid="stDownloadButton"] button,
+[data-testid="stDownloadButton"] button *,
+.stButton button, .stButton button * {
+    background:#ffffff!important;color:#111111!important;
+    -webkit-text-fill-color:#111111!important;
+    border-color:#809173!important;
+}
+[data-testid="stFormSubmitButton"] button,
+[data-testid="stDownloadButton"] button {border:2px solid #809173!important;}
+
 </style>""", unsafe_allow_html=True)
 st.markdown("""<section class="hero"><div class="eyebrow">농사 날씨 길잡이 · 나의 밭, 나의 계절</div>
 <h1>무엇을 심을까요?<br>날씨에서 답을 찾아요.</h1>
 <p>지역과 심을 날짜를 골라 주세요. 앞으로 자라는 동안의 기온과 비를 살펴, 잘 맞는 작물과 주의할 작물을 알려드려요.</p></section>""", unsafe_allow_html=True)
+st.caption("화면 버전: 흰색 입력창 3 · 작물 28종")
 today = datetime.now(timezone(timedelta(hours=9))).date()
 with st.form("settings"):
     st.subheader("우리 밭에 맞게 골라 주세요")
@@ -339,7 +414,7 @@ if 'analysis' in st.session_state:
     st.caption(f"기온 가정: {scenario} | 과거 자료: {year-5}~{year-1}년 | 노지 재배 가정")
     if note:
         st.warning(note)
-    st.warning("점수는 아래 8개 작물 사이의 교육용 비교 지수입니다. 수확 성공 확률이나 실제 수익이 아니며, 최고 점수가 낮으면 추천 작물도 적합하지 않을 수 있습니다.")
+    st.warning("점수는 아래 작물 사이의 교육용 비교 지수입니다. 수확 성공 확률이나 실제 수익이 아니며, 최고 점수가 낮으면 추천 작물도 적합하지 않을 수 있습니다.")
     target = results[0] if saved_choice == '작물 추천받기' else next(r for r in results if r['작물'] == saved_choice)
     cards = [("🌱 가장 유리한 작물", results[0]), ("🍂 가장 불리한 작물", results[-1])] if saved_choice == '작물 추천받기' else [("🌱 선택한 작물", target)]
     result_columns = st.columns(len(cards))
@@ -406,7 +481,7 @@ if 'analysis' in st.session_state:
 with st.expander("계산 방법과 꼭 알아둘 점"):
     st.write("최근 5개 완결 연도의 같은 월·일 기온과 강수량을 평균합니다. 단기 예보가 있는 날짜는 그 예보를 사용하고, 나머지는 과거 평균을 사용합니다. ±2℃ 선택은 장기 추정값에만 적용하는 사용자의 가정이며 공식 기후 전망이 아닙니다.")
     st.write("점수 = 기온 적합도 80% + 강수 적합도 20% − 저온·고온 주의일 비중에 따른 감점. 기온은 적정 범위에서 1℃ 벗어날 때 7점, 주당 강수는 비교 범위에서 1mm 벗어날 때 2점 감점합니다. 저온·고온 감점 계수는 각각 25와 20이며 최종 점수는 0~100점입니다.")
-    st.write("아래 기준은 앱 작동을 설명하기 위한 교육용 가정입니다. 공식 재배 권장 기준으로 검증되지 않았습니다. 파종·정식 구분, 품종, 토양, 일조, 시설, 관수, 병해충, 생육 단계는 반영하지 않았습니다. 과거 평균 최저·최고기온은 실제 한파·폭염 극값을 완화하므로 위험을 과소평가할 수 있습니다.")
+    st.write("아래 기준은 앱 작동을 설명하기 위한 교육용 가정입니다. 작물별 기간은 실제 전체 생육 기간이 아니라 파종·정식 후 첫 수확 등을 단순화한 비교 구간입니다. 장기 재배 작물의 전 기간을 평가하지 않습니다. 공식 재배 권장 기준으로 검증되지 않았습니다. 파종·정식 구분, 품종, 토양, 일조, 시설, 관수, 병해충, 생육 단계는 반영하지 않았습니다. 과거 평균 최저·최고기온은 실제 한파·폭염 극값을 완화하므로 위험을 과소평가할 수 있습니다.")
     st.dataframe(pd.DataFrame([{'작물': c[0], '기간(일)': c[1], '적정 평균기온(℃)': f'{c[2]}~{c[3]}', '저온 주의(℃ 미만)': c[4], '고온 주의(℃ 초과)': c[5], '주당 강수 비교(mm)': f'{c[6]}~{c[7]}'} for c in CROPS]), hide_index=True, use_container_width=True)
     st.write("실제 재배 결정 전에는 지역 농업기술센터 또는 농사로의 품종별 재배 정보를 확인하세요. 대표 지점 자료이므로 같은 지역 안에서도 고도·지형에 따라 달라집니다.")
 st.caption("날씨 자료: Open-Meteo · 기온/강수 재분석 자료와 단기 예보 사용 · 인터넷 연결 필요")
