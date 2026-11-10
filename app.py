@@ -33,6 +33,20 @@ CITIES = {
     "독도": (37.24, 131.87),
 }
 
+# 도별 주요 시·군의 도심 대표 좌표. 실제 밭 위치나 시군 전체 평균이 아님.
+LOCALITIES = {
+ '경기도': {'수원시':(37.264,127.029),'용인시':(37.241,127.178),'이천시':(37.272,127.435),'파주시':(37.760,126.780),'양평군':(37.491,127.488),'평택시':(36.992,127.113)},
+ '강원도': {'춘천시':(37.881,127.730),'강릉시':(37.752,128.876),'원주시':(37.342,127.920),'홍천군':(37.697,127.889),'평창군':(37.370,128.390),'철원군':(38.146,127.313)},
+ '충청북도': {'청주시':(36.642,127.489),'충주시':(36.991,127.926),'제천시':(37.132,128.192),'괴산군':(36.815,127.787),'옥천군':(36.306,127.571)},
+ '충청남도': {'천안시':(36.815,127.114),'공주시':(36.446,127.120),'논산시':(36.187,127.098),'서산시':(36.784,126.450),'홍성군':(36.601,126.661),'예산군':(36.680,126.845)},
+ '전라북도': {'전주시':(35.824,127.148),'익산시':(35.948,126.957),'정읍시':(35.570,126.856),'김제시':(35.803,126.880),'고창군':(35.435,126.702),'남원시':(35.416,127.390)},
+ '전라남도': {'나주시':(35.015,126.711),'순천시':(34.950,127.487),'해남군':(34.573,126.599),'무안군':(34.991,126.482),'보성군':(34.771,127.080),'담양군':(35.321,126.988)},
+ '경상북도': {'안동시':(36.568,128.729),'상주시':(36.411,128.159),'영주시':(36.805,128.624),'경주시':(35.856,129.225),'의성군':(36.353,128.698),'청도군':(35.648,128.734)},
+ '경상남도': {'창원시':(35.228,128.681),'진주시':(35.180,128.108),'밀양시':(35.504,128.746),'김해시':(35.228,128.889),'거창군':(35.687,127.909),'남해군':(34.838,127.892)},
+ '제주도': {'제주시':(33.500,126.531),'서귀포시':(33.254,126.560)},
+ '독도': {'독도 (기후 참고용)':(37.242,131.868)},
+}
+
 # 이름, 비교 기간(일), 적정 평균기온 하한/상한, 저온 위험 기준, 고온 위험 기준,
 # 주당 강수 비교범위 하한/상한(mm). 모두 교육용 가정이며 품종별 기준이 아님.
 CROPS = [
@@ -337,12 +351,14 @@ st.markdown("""<section class="hero"><div class="eyebrow">농사 날씨 길잡�
 <p>지역과 심을 날짜를 골라 주세요. 앞으로 자라는 동안의 기온과 비를 살펴, 잘 맞는 작물과 주의할 작물을 알려드려요.</p></section>""", unsafe_allow_html=True)
 st.caption("화면 버전: 점수와 개선 안내 9 · 작물 28종")
 today = datetime.now(timezone(timedelta(hours=9))).date()
+province = st.selectbox("① 도 선택", list(LOCALITIES), key="province_choice")
 with st.form("settings"):
     st.subheader("우리 밭에 맞게 골라 주세요")
     region_col, date_col, climate_col = st.columns([1, 1, 1.15])
     with region_col:
-        city = st.selectbox("① 농사지을 지역", list(CITIES), index=0)
-        st.caption("도별 대표 지점 기준입니다. 같은 도에서도 날씨는 다를 수 있어요.")
+        locality = st.selectbox("가까운 시·군", list(LOCALITIES[province]), key="locality_" + province)
+        city = province + " · " + locality
+        st.caption("주요 시·군 대표 지점입니다. 실제 밭 위치와는 다를 수 있어요.")
     with date_col:
         selected_date = st.date_input("② 심을 날짜", value=today, min_value=today,
                                       max_value=today+timedelta(days=365), format="YYYY/MM/DD")
@@ -361,7 +377,7 @@ if run:
     st.session_state.pop("analysis", None)
     start = selected_date
     adjustment = {"최근 5년과 비슷": 0, "조금 더 따뜻함 (+2℃)": 2, "조금 더 서늘함 (-2℃)": -2}[scenario]
-    lat, lon = CITIES[city]
+    lat, lon = LOCALITIES[province][locality]
     try:
         with st.spinner("기온과 비 자료를 확인하고 있습니다. 처음에는 잠시 걸릴 수 있어요."):
             normal, counts = historical(lat, lon, today.year)
@@ -374,7 +390,7 @@ if run:
                     note = "단기 예보를 가져오지 못해 전 기간을 과거 기후 기반으로 비교했습니다."
             outlook = build_outlook(normal, counts, short, start, 120, adjustment)
             outlook = facility_outlook(outlook, method, warming)
-            results = sorted([score_crop(c, outlook) for c in CROPS], key=lambda r: r['적합도'], reverse=True)
+            results = sorted([score_crop(c, outlook) for c in CROPS], key=lambda r: (r['점수'],r['적합도']), reverse=True)
             target_name = results[0]['작물'] if crop_choice == '작물 추천받기' else crop_choice
             target_crop = next(c for c in CROPS if c[0] == target_name)
             date_options = []
@@ -399,7 +415,17 @@ if 'analysis' in st.session_state:
     target_crop = next(c for c in CROPS if c[0] == target['작물'])
     st.divider()
     st.subheader(f"{city} · {start:%Y년 %m월 %d일} 심기")
-    cards = [("비교적 유리한 작물", results[0]), ("가장 주의할 작물", results[-1])] if saved_choice == '작물 추천받기' else [("선택한 작물", target)]
+    best_date_summary = max(date_options, key=lambda r:r['점수'])
+    if best_date_summary['점수'] > date_options[0]['점수']:
+        st.success(f"지금 할 일 · {target['작물']}은 {best_date_summary['심을 날짜']:%m월 %d일} 심기를 먼저 검토하세요.")
+    elif target['판정'] == '불리':
+        st.warning("지금 할 일 · 심기보다 다른 시기를 먼저 확인하세요.")
+    elif saved_choice == '작물 추천받기':
+        st.success(f"지금 할 일 · {target['작물']} 재배를 먼저 검토하세요.")
+    else:
+        st.info(f"지금 할 일 · {target['작물']}의 아래 관리 핵심을 확인하세요.")
+    st.subheader("추천 상위 3개" if saved_choice == '작물 추천받기' else "선택한 작물")
+    cards = [(f"{i+1}위", item) for i,item in enumerate(results[:3])] if saved_choice == '작물 추천받기' else [("선택한 작물", target)]
     for col, (heading, item) in zip(st.columns(len(cards)), cards):
         with col, st.container(border=True):
             st.subheader(f"{heading} · {item['작물']}")
@@ -455,15 +481,22 @@ if 'analysis' in st.session_state:
             st.metric(f"{r['심을 날짜']:%m월 %d일}", f"{r['점수']:.1f}점")
             st.write(r["판정"])
     best_date = max(date_options, key=lambda x:x['점수'])
-    if best_date['점수'] > date_options[0]['점수']:
-        st.success(f"세 날짜 중 {best_date['심을 날짜']:%m월 %d일}이 가장 유리해요.")
-    elif all(r['판정']=='불리' for r in date_options):
-        st.warning("세 날짜 모두 불리해요. 더 따뜻한 계절을 검토하세요." if cold else "세 날짜 모두 불리해요. 다른 계절을 검토하세요.")
+    gain = best_date['점수'] - date_options[0]['점수']
+    st.subheader("바꾸면 얼마나 좋아질까요?")
+    before, after = st.columns(2)
+    with before:
+        st.metric(f"선택한 날 · {start:%m월 %d일}", f"{date_options[0]['점수']:.1f}점")
+    with after:
+        st.metric(f"비교한 날 중 최고 · {best_date['심을 날짜']:%m월 %d일}", f"{best_date['점수']:.1f}점", delta=f"+{gain:.1f}점" if gain > 0 else "변화 없음")
+    if gain > 0:
+        message = f"{target['작물']} · {best_date['심을 날짜']:%m월 %d일}에 심는 가정은 {gain:.1f}점 높아요."
+        st.markdown('<div class="red-advice">'+html.escape(message)+'</div>', unsafe_allow_html=True)
     else:
-        st.info("선택한 날보다 더 좋은 날짜는 없어요. 동점은 우열이 없어요.")
+        st.info("비교한 세 날짜에 더 높은 점수는 없어요. 다른 달도 확인해 보세요.")
+    st.caption("같은 작물·같은 시설 가정에서 날짜만 비교한 교육용 점수입니다.")
     lines = ['농사 날씨 길잡이',f'{city} · {start:%Y-%m-%d}',f"{target['작물']} · {target['점수']:.1f}점 · {target['판정']} / {saved_method}", '관리 핵심',*short_tips,'심는 날짜 비교']
     lines += [f"{r['심을 날짜']:%Y-%m-%d} · {r['점수']:.1f}점 · {r['판정']}" for r in date_options]
-    lines += ['문제', *issues, '개선 방향', *actions]
+    lines += [f'날짜 변경 비교: {date_options[0]["점수"]:.1f}점 → {best_date["점수"]:.1f}점 (+{gain:.1f}점)', '문제', *issues, '개선 방향', *actions]
     lines += ['과거 기후 기반 교육용 비교 · 실제 장기 날씨 예측 아님',f'과거 자료 {year-5}~{year-1} · Open-Meteo']
     st.subheader("결과 저장")
     try:
@@ -471,13 +504,13 @@ if 'analysis' in st.session_state:
     except (ValueError,OSError) as exc:
         st.warning("이미지 저장을 준비하지 못했어요. 글로 저장을 이용하세요.")
     st.download_button("글로 저장", '\n'.join(lines).encode('utf-8-sig'), file_name=f"농사결과_{start}.txt", mime="text/plain", use_container_width=True)
-    with st.expander("자세히 보기 · 전체 순위 / 관리 / 자료"):
+    with st.expander("전체 28종 보기 · 관리 / 자료"):
         st.table(pd.DataFrame([{'작물':r['작물'],'점수':r['점수'],'판정':r['판정']} for r in results]))
         for tip in management(target_crop,outlook):
             if saved_method != '비닐하우스' or not tip.startswith(('물주기 준비:', '배수 준비:', '수분 점검:')): st.write('• '+tip)
         st.write(f"단기 예보 {target['예보 일수']}일 · 나머지는 과거 기후 기반 추정")
         if note: st.write(note)
-        if city == '독도': st.warning('독도는 해상 기후 참고용입니다. 실제 재배 판단에 사용하지 마세요.')
+        if city.startswith('독도'): st.warning('독도는 해상 기후 참고용입니다. 실제 재배 판단에 사용하지 마세요.')
     st.caption("교육용 기후 비교입니다. 실제 재배 전 지역 농업기술센터에 확인하세요.")
 
 with st.expander("판정 기준과 한계"):
@@ -489,3 +522,5 @@ with st.expander("판정 기준과 한계"):
     st.table(pd.DataFrame([{'작물':c[0],'비교일':c[1],'적정 평균기온':f'{c[2]}~{c[3]}℃','저온 주의':c[4],'고온 주의':c[5]} for c in CROPS]))
 st.caption("날씨 자료: Open-Meteo · 기온/강수 재분석 자료와 단기 예보 사용 · 인터넷 연결 필요")
 st.markdown("[날씨 자료 및 이용 조건](https://open-meteo.com/) · [과거 날씨 자료 설명](https://open-meteo.com/en/docs/historical-weather-api) · [농사로 재배 정보](https://www.nongsaro.go.kr/)")
+
+st.caption("화면 버전 · 지역 세분화와 상위 3개 · 10")
