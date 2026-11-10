@@ -460,28 +460,36 @@ if 'analysis' in st.session_state:
         short_tips += ["하우스 내부 · 환기와 토양 수분 직접 점검"]
     elif saved_method == '보온 덮개':
         short_tips += ["덮개 안 실제 온도·수분 확인"]
-    st.subheader("무엇이 문제인가요?")
+    st.subheader("왜 점수가 낮아요?")
     mean = float(outlook.iloc[:target_crop[1]][COLS[0]].mean())
-    issues = []
-    if target['초기'] < .7: issues.append(f"초기 2주 적합일이 {target['초기']:.0%}로 적어요.")
-    if target['생육'] < .7: issues.append(f"이후 생육 적합일이 {target['생육']:.0%}로 적어요.")
-    if cold: issues.append("저온 주의 기준보다 낮은 날이 있어요.")
-    if hot: issues.append("고온 주의 기준보다 높은 날이 있어요.")
-    if not issues: issues.append("현재 기온 가정에서는 큰 감점 요인이 없어요.")
-    actions = []
-    if cold or mean < target_crop[2]: actions.append("더 따뜻한 심는 시기를 비교하세요. 시설은 실제 내부 온도를 측정해 입력하세요.")
-    if hot or mean > target_crop[3]: actions.append("더 서늘한 심는 시기를 비교하세요. 차광·환기는 실제 온도를 확인하며 적용하세요.")
+    if cold and hot:
+        issues = ["너무 춥거나 더운 날이 있어요."]
+    elif cold or mean < target_crop[2]:
+        issues = ["날씨가 너무 추워요."]
+    elif hot or mean > target_crop[3]:
+        issues = ["날씨가 너무 더워요."]
+    elif target['초기'] < .7 or target['생육'] < .7:
+        issues = ["이 작물이 좋아하는 온도의 날이 적어요."]
+    else:
+        issues = ["온도는 잘 맞아요."]
     alternatives = [r for r in date_options if r['점수'] > date_options[0]['점수']]
+    actions = []
     if alternatives:
         better = max(alternatives, key=lambda r:r['점수'])
-        actions.append(f"같은 작물을 {better['심을 날짜']:%m월 %d일}에 심는 가정은 {better['점수']:.1f}점으로 {better['점수']-date_options[0]['점수']:.1f}점 높아요.")
-    else: actions.append("비교한 세 날짜에는 더 높은 점수가 없어요. 다른 달도 비교해 보세요.")
+        if better['판정'] != '불리':
+            actions.append(f"{better['심을 날짜']:%m월 %d일}로 심는 날짜를 바꾸세요. ({date_options[0]['점수']:.0f}점 → {better['점수']:.0f}점)")
+        else:
+            actions.append(f"지금은 심지 말고 다른 달을 골라 다시 비교하세요. 비교한 세 날짜는 모두 심기 불리해요." if all(r['판정']=='불리' for r in date_options) else "다른 달을 골라 다시 비교하세요. 날짜를 조금 늦춰도 아직 불리해요.")
+    elif target['판정'] == '불리' or target['초기'] < .7 or target['생육'] < .7:
+        actions.append("더 따뜻한 달을 골라 다시 비교하세요." if cold or mean < target_crop[2] else "더 서늘한 달을 골라 다시 비교하세요." if hot or mean > target_crop[3] else "다른 달을 골라 다시 비교하세요.")
+    else:
+        actions.append("아래 관리 방법을 확인하세요.")
     for message in issues:
-        st.markdown('<div class="red-advice">문제 · '+html.escape(message)+'</div>', unsafe_allow_html=True)
-    st.subheader("점수를 높이려면?")
-    for message in actions:
-        st.markdown('<div class="red-advice">대안 · '+html.escape(message)+'</div>', unsafe_allow_html=True)
-    st.caption("점수는 기온 적합일과 온도 위험만 반영합니다. 물주기·비료·배수는 중요하지만 이 점수를 직접 올리지는 않습니다. 입력값만 바꾸는 것은 실제 개선이 아닙니다.")
+        st.markdown('<div class="red-advice">'+html.escape(message)+'</div>', unsafe_allow_html=True)
+    st.subheader("이렇게 하세요!")
+    for message in actions[:1]:
+        st.markdown('<div class="red-advice">'+html.escape(message)+'</div>', unsafe_allow_html=True)
+    st.caption("날씨로만 비교한 참고 결과예요. 실제로 심기 전에는 지역 농업기술센터에 확인하세요.")
     st.subheader("관리 핵심")
     for tip in short_tips[:3]:
         st.write("**• " + tip + "**")
@@ -536,3 +544,5 @@ st.markdown("[날씨 자료 및 이용 조건](https://open-meteo.com/) · [과�
 st.caption("화면 버전 · 지역 세분화와 상위 3개 · 10")
 
 st.caption("화면 버전 11 · 모르면 실외 기준 / 측정값은 선택 입력")
+
+st.caption("화면 버전 12 · 문제 한 줄 / 할 일 한 줄")
