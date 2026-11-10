@@ -352,7 +352,7 @@ st.markdown("""<section class="hero"><div class="eyebrow">농사 날씨 길잡�
 st.caption("화면 버전: 점수와 개선 안내 9 · 작물 28종")
 today = datetime.now(timezone(timedelta(hours=9))).date()
 province = st.selectbox("① 도 선택", list(LOCALITIES), key="province_choice")
-with st.form("settings"):
+with st.container(border=True):
     st.subheader("우리 밭에 맞게 골라 주세요")
     region_col, date_col, climate_col = st.columns([1, 1, 1.15])
     with region_col:
@@ -368,9 +368,19 @@ with st.form("settings"):
     crop_choice = st.selectbox("④ 관심 작물 (선택사항)", ["작물 추천받기"] + [c[0] for c in CROPS])
     st.caption("잘 모르겠다면 추천받기를 그대로 두세요. 작물을 고르면 해당 작물의 관리 방법을 안내해 드려요.")
     method = st.selectbox("⑤ 재배 방식", ["노지", "보온 덮개", "비닐하우스"])
-    warming = st.number_input("시설 내부 기온 상승 가정 (℃)", min_value=0.0, max_value=15.0, value=0.0, step=0.5)
-    st.caption("노지는 0℃로 계산합니다. 시설은 실제 측정값에 맞춰 입력하세요. 일정한 보온 효과를 보장하지 않습니다.")
-    run = st.form_submit_button("우리 밭에 맞는 작물 알아보기 →", type="primary", use_container_width=True)
+    warming = 0.0
+    if method == "노지":
+        st.caption("실외 기온으로 분석해요. 추가 입력은 없어요.")
+    else:
+        temperature_known = st.radio("시설 안팎의 온도 차이를 아시나요?", ["온도를 모르겠어요", "측정한 온도가 있어요"], key="facility_temperature_known")
+        if temperature_known == "온도를 모르겠어요":
+            st.caption("실외 기온 기준 · 시설 보온 효과는 반영하지 않아요.")
+        else:
+            with st.expander("자세한 온도 설정", expanded=True):
+                warming = st.number_input("실외보다 몇 ℃ 따뜻한가요?", min_value=0, max_value=15, value=0, step=1, format="%d", key="measured_warming_v11")
+                st.caption("같은 시간에 측정한 안팎 온도 차이를 입력하세요. 전체 기간에 동일하게 적용하는 단순 가정이에요.")
+    run = st.button("우리 밭에 맞는 작물 알아보기 →", type="primary", use_container_width=True)
+
 st.caption("가까운 날은 단기 예보, 먼 날은 최근 5년 기후를 활용합니다. 몇 달 뒤 실제 날씨를 정확히 예측하는 서비스는 아닙니다.")
 
 if run:
@@ -524,3 +534,5 @@ st.caption("날씨 자료: Open-Meteo · 기온/강수 재분석 자료와 단�
 st.markdown("[날씨 자료 및 이용 조건](https://open-meteo.com/) · [과거 날씨 자료 설명](https://open-meteo.com/en/docs/historical-weather-api) · [농사로 재배 정보](https://www.nongsaro.go.kr/)")
 
 st.caption("화면 버전 · 지역 세분화와 상위 3개 · 10")
+
+st.caption("화면 버전 11 · 모르면 실외 기준 / 측정값은 선택 입력")
