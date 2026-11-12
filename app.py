@@ -731,30 +731,44 @@ else:
         st.markdown('[날씨 자료: Open-Meteo](https://open-meteo.com/) · [자료 이용 조건](https://open-meteo.com/en/terms)')
     st.caption('버전 13 · 다른 날씨 + 작업 날짜')
 
-# Final presentation layer; keeps all calculation and navigation logic unchanged.
-_design_dark = st.session_state.get('display_theme', '') == '어둡게 🌙'
-_design_panel = '#24342d' if _design_dark else '#ffffff'
-_design_ink = '#f2f8f4' if _design_dark else '#193d2b'
-_design_muted = '#c1d3c7' if _design_dark else '#455e50'
-st.markdown("""<style>
-.farm-banner {background:linear-gradient(115deg,#174b35,#37805a);border-radius:26px;padding:30px 36px;margin:16px 0 26px;box-shadow:0 12px 30px #123c2417;}
-.farm-banner h2 {color:white!important;font-size:clamp(30px,4vw,48px)!important;line-height:1.25!important;margin:14px 0!important;font-weight:850!important;}
-.farm-banner p {color:#edf7e9!important;font-size:20px!important;margin:0!important;}
-.farm-tag {display:inline-block;background:#eff7c8;color:#244632!important;border-radius:30px;padding:6px 14px;font-size:16px;font-weight:800;}
-[data-testid="stVerticalBlockBorderWrapper"] > div {border-radius:22px!important;}
-[data-testid="stFormSubmitButton"] button,[data-testid="stButton"] button {min-height:58px!important;border-radius:14px!important;}
-[data-testid="stRadio"] label {padding:7px 10px;border-radius:12px;}
-[data-testid="stMetric"] {border-left:5px solid #4f9d69;border-radius:18px;padding:18px!important;box-shadow:0 5px 18px #123c2410;}
-[data-testid="stMetricValue"] {font-size:36px!important;font-weight:850!important;}
-[data-testid="stWidgetLabel"] p {font-weight:800!important;font-size:20px!important;}
-[data-testid="stSelectbox"],[data-testid="stDateInput"] {margin-bottom:10px;}
-[data-testid="stCaptionContainer"] p {font-size:16px!important;line-height:1.5!important;}
-@media(max-width:640px){.farm-banner{padding:24px 22px;border-radius:20px;}.farm-banner p{font-size:18px!important;}}
-</style>""",unsafe_allow_html=True)
+# Unified presentation override: higher specificity than previous theme rules.
+_new_dark = st.session_state.get('display_theme') == '어둡게 🌙'
+_bg = '#101d2b' if _new_dark else '#edf5fc'
+_panel = '#1c2e43' if _new_dark else '#ffffff'
+_ink = '#f4f8ff' if _new_dark else '#172e49'
+_muted = '#c4d2e4' if _new_dark else '#465d76'
 st.markdown(f"""<style>
-[data-testid="stVerticalBlockBorderWrapper"] > div,[data-testid="stMetric"] {{background:{_design_panel}!important;}}
-[data-testid="stMetricLabel"] p,[data-testid="stMetricValue"] {{color:{_design_ink}!important;}}
-[data-testid="stCaptionContainer"] p {{color:{_design_muted}!important;}}
-[data-testid="stButton"] button,[data-testid="stFormSubmitButton"] button {{background:#216b46!important;border:1px solid #216b46!important;}}
-[data-testid="stButton"] button p,[data-testid="stFormSubmitButton"] button p {{color:#fff!important;font-size:21px!important;font-weight:800!important;}}
+:root {{ --farm-bg:{_bg}; --farm-surface:{_panel}; --farm-text:{_ink}; }}
+html body .stApp,html body [data-testid="stAppViewContainer"] {{background:{_bg}!important;color:{_ink}!important;}}
+html body [data-testid="stHeader"] {{background:{_bg}!important;}}
+html body .block-container {{max-width:1400px;padding:1.5rem 4vw 4rem;}}
+html body .stApp [data-testid="stMarkdownContainer"] h1,
+html body .stApp [data-testid="stMarkdownContainer"] h2,
+html body .stApp [data-testid="stMarkdownContainer"] h3 {{color:{_ink}!important;}}
+html body .stApp .farm-banner {{position:relative;overflow:hidden;background:linear-gradient(110deg,#123c73,#1874bc)!important;border-radius:24px;padding:32px 38px;margin:18px 0 28px;border-bottom:7px solid #ffcc65;box-shadow:0 12px 30px #123c7320;}}
+html body .stApp .farm-banner::after {{content:'☀';position:absolute;right:6%;top:-45px;font-size:240px;color:#ffffff14;pointer-events:none;}}
+html body .stApp [data-testid="stMarkdownContainer"] .farm-banner h2,
+html body .stApp [data-testid="stMarkdownContainer"] .farm-banner h2 *,
+html body .stApp [data-testid="stMarkdownContainer"] .farm-banner p {{color:#fff!important;-webkit-text-fill-color:#fff!important;position:relative;z-index:1;}}
+html body .stApp .farm-banner h2 {{font-size:clamp(32px,4vw,52px)!important;font-weight:850!important;line-height:1.25;margin:16px 0!important;}}
+html body .stApp .farm-banner p {{font-size:21px!important;}}
+html body .stApp .farm-tag {{display:inline-block;background:#ffdb87!important;color:#173452!important;-webkit-text-fill-color:#173452!important;border-radius:8px;padding:7px 13px;font-weight:800;}}
+html body .stApp .hero {{background:{_panel}!important;border-left:6px solid #1874bc;border-radius:18px;padding:24px 28px!important;margin:12px 0 22px;}}
+html body .stApp [data-testid="stMarkdownContainer"] .hero h1 {{font-size:clamp(28px,3vw,40px)!important;letter-spacing:-1px;}}
+html body .stApp [data-testid="stMarkdownContainer"] .hero p {{font-size:19px!important;color:{_muted}!important;}}
+html body .stApp [data-testid="stVerticalBlockBorderWrapper"] > div {{background:{_panel}!important;border:1px solid #8babc344!important;border-radius:20px!important;padding:22px!important;box-shadow:0 8px 24px #17345209;}}
+html body .stApp [data-testid="stMetric"] {{background:{_panel}!important;border-radius:18px;border-top:5px solid #1874bc;padding:20px!important;box-shadow:0 6px 22px #123c7310;}}
+html body .stApp [data-testid="stMetricValue"] {{color:{_ink}!important;font-size:40px!important;font-weight:850;}}
+html body .stApp [data-testid="stMetricLabel"] p {{color:{_ink}!important;font-size:21px!important;}}
+html body .stApp [data-testid="stCaptionContainer"] p {{color:{_muted}!important;font-size:16px!important;}}
+html body .stApp [data-testid="stWidgetLabel"] p {{color:{_ink}!important;font-size:21px!important;font-weight:800!important;}}
+html body .stApp [data-testid="stButton"] button,
+html body .stApp [data-testid="stFormSubmitButton"] button {{background:#1566b5!important;border:0!important;border-radius:14px!important;min-height:60px;box-shadow:0 5px 12px #1566b522;}}
+html body .stApp [data-testid="stButton"] button p,
+html body .stApp [data-testid="stFormSubmitButton"] button p {{color:#fff!important;-webkit-text-fill-color:#fff!important;font-size:22px!important;font-weight:800!important;}}
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] div,
+html body .stApp [data-testid="stDateInput"] [data-baseweb="input"],
+html body .stApp [data-testid="stDateInput"] input {{background:{_panel}!important;color:{_ink}!important;-webkit-text-fill-color:{_ink}!important;}}
+html body .stApp [data-testid="stSelectbox"] svg {{fill:{_ink}!important;color:{_ink}!important;}}
+@media(max-width:640px) {{html body .block-container{{padding:1rem 16px 3rem;}}html body .stApp .farm-banner{{padding:25px 22px;}}html body .stApp .hero{{padding:20px!important;}}}}
 </style>""",unsafe_allow_html=True)
