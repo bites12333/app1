@@ -1,6 +1,35 @@
 """농사 날씨 길잡이: 작물 분석 + 작업 날씨. streamlit run app.py"""
 import streamlit as st
 st.set_page_config(page_title="농사 날씨 길잡이", page_icon="🌱", layout="wide")
+# Entry screen only gates navigation; existing features and results remain intact.
+if not st.session_state.get("entered", False):
+    st.markdown("""<style>
+    .stApp {background:#f6f5eb;color:#243b2c;}
+    [data-testid="stHeader"] {background:transparent;}
+    .block-container {max-width:1100px;padding-top:9vh;padding-bottom:3rem;}
+    .welcome {text-align:center;padding:30px 12px;}
+    .welcome .leaf {font-size:76px;}
+    .welcome h1 {font-size:clamp(38px,6vw,72px)!important;line-height:1.2;color:#244d32!important;letter-spacing:-2px;}
+    .welcome p {font-size:24px;color:#415648;line-height:1.7;}
+    .welcome .mini {font-size:19px;}
+    [data-testid="stButton"] button {background:#285b39!important;color:#fff!important;min-height:64px;border-radius:18px;border:0;font-size:24px;}
+    [data-testid="stButton"] button p {color:#fff!important;font-size:24px!important;font-weight:700;}
+    @media(max-width:640px){.block-container{padding-top:5vh;}.welcome p{font-size:20px;}}
+    </style>
+    <section class="welcome"><div class="leaf">🌱</div>
+    <h1>농사 날씨 길잡이</h1>
+    <p>무엇을 심을까?<br>언제 밭일할까?</p>
+    <p class="mini">우리 동네 날씨로 함께 살펴봐요.</p></section>
+    """, unsafe_allow_html=True)
+    if st.button("입장하기 →", use_container_width=True, key="enter_app"):
+        st.session_state['entered'] = True
+        st.rerun()
+    st.stop()
+
+if st.button("← 첫 화면", key="return_to_entry"):
+    st.session_state['entered'] = False
+    st.rerun()
+
 view = st.radio("어떤 도움이 필요하세요?", ["작물 추천·관리", "날씨 변화·밭일 날짜"], horizontal=True, key="main_feature")
 
 if view == "작물 추천·관리":
