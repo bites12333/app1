@@ -283,6 +283,18 @@ def entry_screen(store):
 [data-testid="stForm"] input {background:white!important;color:#111!important;-webkit-text-fill-color:#111!important;}
 [data-testid="stFormSubmitButton"] button {background:#254e38!important;color:white!important;min-height:54px;}
 [data-testid="stFormSubmitButton"] button p {color:white!important;-webkit-text-fill-color:white!important;font-size:20px!important;}
+
+/* Mobile-first single-column presentation at every viewport width. */
+.block-container {max-width:620px!important;padding-left:18px!important;padding-right:18px!important;}
+[data-testid="stHorizontalBlock"] {flex-direction:column!important;gap:14px!important;}
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {width:100%!important;min-width:0!important;flex:1 1 100%!important;}
+.st-key-main_feature [role="radiogroup"] {display:flex!important;flex-direction:column!important;gap:8px!important;}
+.st-key-main_feature [role="radiogroup"] label {width:100%!important;box-sizing:border-box!important;justify-content:flex-start!important;}
+[data-testid="stButton"] button,[data-testid="stDownloadButton"] button,[data-testid="stFormSubmitButton"] button {width:100%!important;min-height:52px!important;}
+[data-testid="stSelectbox"],[data-testid="stDateInput"],[data-testid="stTextArea"] {width:100%!important;}
+[data-testid="stTable"] {max-width:100%!important;overflow-x:auto!important;}
+[data-testid="stVerticalBlockBorderWrapper"]>div {padding:16px!important;}
+@media(max-width:420px){.block-container{padding-left:12px!important;padding-right:12px!important;}}
 </style>""".replace('PHOTO',FIELD_PHOTO),unsafe_allow_html=True)
     st.markdown('<div class="welcome"><h1>우리 가족 농사</h1><p>우리 밭을 함께 돌봐요.</p></div>',unsafe_allow_html=True)
     with st.form('simple_family_entry'):
@@ -561,6 +573,25 @@ html,body,input,button {font-family:system-ui,'Apple SD Gothic Neo','Malgun Goth
 [data-testid="stMetricLabel"] p {color:MUTED!important;font-size:18px!important;}
 [data-testid="stCaptionContainer"] p {color:MUTED!important;font-size:16px!important;line-height:1.5;}
 [data-testid="stAlert"] {background:SOFT!important;border-radius:12px;color:INK!important;}
+/* Contrast fix limited to notices, multiline fields and form submit buttons. */
+[data-testid="stAlert"] > div,
+[data-testid="stAlert"] [data-baseweb="notification"],
+[data-testid="stAlertContainer"] {background:SOFT!important;color:INK!important;}
+[data-testid="stAlert"] p,[data-testid="stAlert"] span,
+[data-testid="stAlert"] li,[data-testid="stAlert"] svg {
+color:INK!important;-webkit-text-fill-color:INK!important;}
+[data-testid="stTextArea"] [data-baseweb="textarea"],
+[data-testid="stTextArea"] textarea {
+background:SURFACE!important;color:INK!important;-webkit-text-fill-color:INK!important;
+border-color:BORDER!important;font-size:19px!important;caret-color:INK!important;}
+[data-testid="stTextArea"] textarea::placeholder {
+color:MUTED!important;-webkit-text-fill-color:MUTED!important;opacity:1!important;}
+[data-testid="stFormSubmitButton"] button {
+background:#254e38!important;border:1px solid #254e38!important;min-height:50px;}
+[data-testid="stFormSubmitButton"] button p,
+[data-testid="stFormSubmitButton"] button span {
+color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;font-size:19px!important;font-weight:700!important;}
+
 [data-testid="stExpander"] {background:SURFACE;border:1px solid BORDER!important;border-radius:12px;}
 [data-testid="stExpander"] summary p {color:INK!important;font-size:18px;}
 .red-advice,.action {color:RED!important;-webkit-text-fill-color:RED!important;font-size:23px!important;font-weight:750;line-height:1.6;}
@@ -568,6 +599,18 @@ html,body,input,button {font-family:system-ui,'Apple SD Gothic Neo','Malgun Goth
 [data-testid="stTable"] table {color:INK!important;background:SURFACE!important;}
 [data-testid="stTable"] th {background:SOFT!important;color:INK!important;}
 [data-testid="stTable"] td {color:INK!important;border-color:BORDER!important;font-size:18px;}
+/* Mobile-first single-column presentation at every viewport width. */
+.block-container {max-width:620px!important;padding-left:18px!important;padding-right:18px!important;}
+[data-testid="stHorizontalBlock"] {flex-direction:column!important;gap:14px!important;}
+[data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {width:100%!important;min-width:0!important;flex:1 1 100%!important;}
+.st-key-main_feature [role="radiogroup"] {display:flex!important;flex-direction:column!important;gap:8px!important;}
+.st-key-main_feature [role="radiogroup"] label {width:100%!important;box-sizing:border-box!important;justify-content:flex-start!important;}
+[data-testid="stButton"] button,[data-testid="stDownloadButton"] button,[data-testid="stFormSubmitButton"] button {width:100%!important;min-height:52px!important;}
+[data-testid="stSelectbox"],[data-testid="stDateInput"],[data-testid="stTextArea"] {width:100%!important;}
+[data-testid="stTable"] {max-width:100%!important;overflow-x:auto!important;}
+[data-testid="stVerticalBlockBorderWrapper"]>div {padding:16px!important;}
+@media(max-width:420px){.block-container{padding-left:12px!important;padding-right:12px!important;}}
+
 @media(max-width:768px){
 .block-container {padding:1rem 16px 3rem;}
 .field-masthead {min-height:225px;padding:30px 24px;background-position:58% center;}
