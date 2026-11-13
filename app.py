@@ -648,7 +648,31 @@ st.markdown('<header class="field-masthead"><div class="field-brand">우리가�
 
 if st.session_state.get('pending_main_feature'):
     st.session_state['main_feature'] = st.session_state.pop('pending_main_feature')
-view = st.radio("기능 선택", ["우리 밭", "작물 추천·관리", "날씨 변화·밭일 날짜", "가족 대화"], horizontal=True, key="main_feature", label_visibility="collapsed")
+# Render real two-column button rows BEFORE any page-specific st.stop().
+st.markdown("""<style>
+.st-key-family_nav [data-testid="stHorizontalBlock"] {
+ flex-direction:row!important;flex-wrap:nowrap!important;gap:10px!important;
+}
+.st-key-family_nav [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+ width:calc(50% - 5px)!important;min-width:0!important;flex:1 1 0!important;
+}
+.st-key-family_nav button {width:100%!important;min-height:78px!important;border-radius:14px!important;padding:10px 6px!important;}
+.st-key-family_nav button p {font-size:17px!important;white-space:normal!important;word-break:keep-all!important;}
+.st-key-family_nav button[kind="primary"] {background:#254e38!important;border-color:#254e38!important;}
+.st-key-family_nav button[kind="primary"] p {color:white!important;-webkit-text-fill-color:white!important;}
+</style>""",unsafe_allow_html=True)
+if 'main_feature' not in st.session_state:
+    st.session_state['main_feature']='우리 밭'
+with st.container(key='family_nav'):
+    for row in [('우리 밭','작물 추천·관리'),('날씨 변화·밭일 날짜','가족 대화')]:
+        columns=st.columns(2)
+        for col,label in zip(columns,row):
+            with col:
+                if st.button(label,key='nav_'+label,use_container_width=True,
+                             type='primary' if st.session_state['main_feature']==label else 'secondary'):
+                    st.session_state['main_feature']=label
+                    st.rerun()
+view=st.session_state['main_feature']
 if view == '우리 밭':
     family_farms_page()
     st.stop()
