@@ -493,7 +493,24 @@ left, right = st.columns([4, 1])
 with left:
     st.caption(ME['family_name']+' · '+ME['nickname']+'님')
 with right:
-    with st.popover('화면 설정'):
+    with st.expander('⚙️ 화면 설정', expanded=False):
+        st.markdown("""<style>
+        [data-testid="stExpander"]:has(.st-key-display_theme),
+        [data-testid="stExpander"]:has(.st-key-display_theme) details,
+        [data-testid="stExpander"]:has(.st-key-display_theme) details > div {
+            background:#ffffff!important;color:#173b28!important;
+        }
+        .st-key-display_theme {background:#ffffff!important;padding:14px;border-radius:10px;}
+        .st-key-display_theme label,
+        .st-key-display_theme p,
+        .st-key-display_theme span,
+        .st-key-display_theme [data-testid="stWidgetLabel"] p,
+        .st-key-display_theme [role="radiogroup"] label p {
+            color:#173b28!important;-webkit-text-fill-color:#173b28!important;
+        }
+        .st-key-family_logout button {background:#254e38!important;}
+        .st-key-family_logout button p {color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;}
+        </style>""", unsafe_allow_html=True)
         st.radio('화면 테마', ['밝게 ☀️', '어둡게 🌙'], key='display_theme')
         if st.button('첫 화면으로', key='family_logout'):
             family_call(STORE.logout,TOKEN)
