@@ -616,6 +616,21 @@ color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;font-size:19px
 [data-testid="stTable"] table {color:INK!important;background:SURFACE!important;}
 [data-testid="stTable"] th {background:SOFT!important;color:INK!important;}
 [data-testid="stTable"] td {color:INK!important;border-color:BORDER!important;font-size:18px;}
+/* st.text is not Markdown: explicitly theme plain-text content in farm cards/reports/chat. */
+[data-testid="stText"],
+[data-testid="stText"] *,
+[data-testid="stText"] pre,
+[data-testid="stText"] code {
+ color:INK!important;-webkit-text-fill-color:INK!important;
+ background:transparent!important;opacity:1!important;
+ font-family:inherit!important;font-size:19px!important;line-height:1.65!important;
+ white-space:pre-wrap!important;overflow-wrap:anywhere!important;
+}
+[data-testid="stChatMessage"] {background:SURFACE!important;color:INK!important;}
+[data-testid="stChatMessage"] [data-testid="stCaptionContainer"] p {
+ color:MUTED!important;-webkit-text-fill-color:MUTED!important;opacity:1!important;
+}
+
 /* Mobile-first single-column presentation at every viewport width. */
 .block-container {max-width:620px!important;padding-left:18px!important;padding-right:18px!important;}
 [data-testid="stHorizontalBlock"] {flex-direction:column!important;gap:14px!important;}
