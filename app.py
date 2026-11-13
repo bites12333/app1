@@ -1237,3 +1237,25 @@ st.markdown("""<style>
  font-size:clamp(14px,3.6vw,18px)!important;text-align:center!important;
  white-space:normal!important;word-break:keep-all!important;}
 </style>""", unsafe_allow_html=True)
+
+st.markdown("""<style>
+/* Settings popover is portalled outside the themed page: force its own palette. */
+[data-testid="stPopoverBody"],
+[data-testid="stPopoverBody"] > div {
+ background:#ffffff!important;color:#163727!important;color-scheme:light!important;
+}
+[data-testid="stPopoverBody"] p,
+[data-testid="stPopoverBody"] label,
+[data-testid="stPopoverBody"] span,
+[data-testid="stPopoverBody"] [data-testid="stWidgetLabel"] p,
+[data-testid="stPopoverBody"] [data-testid="stRadio"] label p {
+ color:#163727!important;-webkit-text-fill-color:#163727!important;
+}
+[data-testid="stPopoverBody"] button {
+ background:#254e38!important;color:#ffffff!important;border:1px solid #254e38!important;
+}
+[data-testid="stPopoverBody"] button p,
+[data-testid="stPopoverBody"] button span {
+ color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;
+}
+</style>""",unsafe_allow_html=True)
