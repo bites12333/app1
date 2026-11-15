@@ -419,15 +419,17 @@ def family_farms_page():
                             st.session_state.pop('analysis_farm_picker',None)
                             st.rerun()
     if st.session_state.get('side_action')=='내 밭 등록':
-        st.caption('등록한 위치·작물·메모는 가족 모두에게 보여요.')
+        st.caption('등록한 위치와 작물은 가족 모두에게 보여요.')
         choose_address('register_farm')
         province=st.session_state['register_farm_prov']
         district=st.session_state['register_farm_city_'+province]
         town=st.session_state['register_farm_town_'+province+'_'+district]
         with st.form('register_farm_form',clear_on_submit=True):
             name=st.text_input('밭 이름',placeholder='예: 할머니 집 뒤 텃밭',max_chars=40)
-            crops=st.multiselect('키우는 작물 (선택)',FAMILY_CROPS)
-            note=st.text_area('가족에게 남길 메모 (선택)',max_chars=300,height=80)
+            import re
+            crop_text=st.text_input('키우는 작물 (선택)',placeholder='예: 상추, 시금치, 대파',max_chars=200)
+            crops=list(dict.fromkeys(x.strip() for x in re.split(r'[,，、\n]+',crop_text) if x.strip()))
+            note=''
             if st.form_submit_button('이 밭 기억하기',use_container_width=True):
                 farm_id=family_call(STORE.add_farm,TOKEN,name,province,district,town,crops,note)
                 st.session_state['loaded_farm_id']=None
@@ -654,10 +656,17 @@ color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;font-size:19px
     st.markdown(css,unsafe_allow_html=True)
 
 render_design(dark)
-font_size=24 if st.session_state.get('font_choice')=='더 크게' else 20
+font_size=int(st.session_state.get('font_size_slider',20))
 st.markdown(f"""<style>
 .stApp.stApp.stApp p,.stApp.stApp.stApp li,.stApp.stApp.stApp label,.stApp.stApp.stApp input,.stApp.stApp.stApp textarea,.stApp.stApp.stApp select,.stApp.stApp.stApp [data-testid="stText"],.stApp.stApp.stApp [data-testid="stCaptionContainer"] p,.stApp.stApp.stApp [data-testid="stWidgetLabel"] p,.stApp.stApp.stApp button p {{font-size:{font_size}px!important;line-height:1.55!important;}}
-.stApp.stApp.stApp .st-key-family_nav button p {{font-size:{18 if font_size==24 else 16}px!important;}}
+.stApp.stApp.stApp .st-key-family_nav button p {{font-size:{font_size-4}px!important;}}
+.stApp.stApp.stApp h1 {{font-size:{font_size+14}px!important;}}
+.stApp.stApp.stApp h2 {{font-size:{font_size+10}px!important;}}
+.stApp.stApp.stApp h3 {{font-size:{font_size+6}px!important;}}
+.stApp.stApp.stApp [data-testid="stSelectbox"] [data-baseweb="select"] div,
+.stApp.stApp.stApp [role="radiogroup"] p,
+.stApp.stApp.stApp [data-testid="stMarkdownContainer"] p {{font-size:{font_size}px!important;}}
+
 </style>""",unsafe_allow_html=True)
 if side_action in ('가족 초대 코드','화면 설정','글씨 크기','내 밭 등록'):
     if st.button('← 우리 밭',key='settings_back'):
@@ -717,7 +726,8 @@ if side_action=='가족 초대 코드':
     st.stop()
 if side_action=='글씨 크기':
     st.subheader('🔠 글씨 크기')
-    st.radio('읽기 편한 크기를 골라 주세요.',['크게','더 크게'],key='font_choice')
+    st.slider('작게 ← 글자 크기 → 크게',min_value=16,max_value=24,value=20,step=1,key='font_size_slider')
+    st.markdown('이 글씨를 보며 크기를 맞춰 주세요.')
     st.stop()
 if side_action=='화면 설정':
     st.subheader('화면 설정')
@@ -1209,10 +1219,8 @@ if view == "작물 추천":
             if city.startswith('독도'): st.warning('독도는 해상 기후 참고용입니다. 실제 재배 판단에 사용하지 마세요.')
         st.caption("교육용 기후 비교입니다. 실제 재배 전 지역 농업기술센터에 확인하세요.")
 
-    st.caption("날씨로 비교한 참고 점수예요. 실제 수확을 보장하지 않아요.")
-    details='검증된 농업 진단이 아닌 교육용 선별 기준입니다. 초기 14일(활착 참고)과 이후 기간을 나누되, 둘 다 같은 작물별 적정 평균기온 범위를 사용합니다. 발아·토양온도·정식 기준을 따로 검증한 모델이 아닙니다.\n\n비교 점수 = 100 × (초기 적합일 비중 × 0.4 + 이후 적합일 비중 × 0.6) × (1 − 저온·고온 중 큰 노출 비중 × 0.5). 실제 성공 확률이 아닙니다. 등급은 심한 위험을 우선 확인하므로 점수 순서와 등급 순서는 다를 수 있습니다.\n\n적합일 비중 = 초기 40% + 이후 60%. 유리: 적합일 비중 70% 이상이고 저온·고온 노출 각각 10% 미만. 불리: 적합일 비중 30% 미만이거나 저온 또는 고온 노출 30% 이상. 나머지는 주의입니다. 이 수치는 교육용 가정입니다. 같은 등급에서도 적합일과 위험 노출로 상대 비교합니다.\n\n비는 관수·배수 준비에만 사용하며 판정에서 제외합니다. 하우스 안에 실외 강수를 적용하지 않습니다. 시설은 입력한 기온 차이를 모든 날짜의 기온에 더하는 시나리오일 뿐 실제 보온·환기 효과 예측이 아닙니다. 광량·습도·토양·품종·병해충은 미반영입니다.\n\n장기 자료는 최근 5년 같은 날짜의 평균입니다. 실제 한파·폭염·연속 강우 위험은 과소평가할 수 있습니다. 날짜 비교는 같은 작물의 세 날짜에 한정합니다. 작물 기간은 단순화된 비교 구간이며 수확일 예측이 아닙니다.'
-    criteria=pd.DataFrame([{'작물':c[0],'비교일':c[1],'적정 평균기온':f'{c[2]}~{c[3]}℃','저온 주의':c[4],'고온 주의':c[5]} for c in CROPS])
-    st.download_button("비교 기준 받기",details+"\n\n"+criteria.to_csv(index=False),file_name="비교기준.txt")
+    st.caption("기온이 작물에 맞을수록 높은 점수예요. 실제 수확을 보장하진 않아요.")
+    st.caption("먼 날짜는 최근 5년 평균으로 추정해요. 실제 장기예보는 아니에요.")
     with st.container(border=True):
         st.caption("날씨 자료: Open-Meteo · 인터넷 연결 필요")
         st.markdown("[날씨 자료](https://open-meteo.com/) · [과거 기후](https://open-meteo.com/en/docs/historical-weather-api) · [농사로](https://www.nongsaro.go.kr/)")
