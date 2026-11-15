@@ -670,6 +670,33 @@ st.markdown("""<style>
 .st-key-family_drawer h3,.st-key-family_drawer p {color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;}
 .st-key-family_drawer button {background:#303c32!important;border:0!important;border-radius:9px!important;min-height:52px!important;text-align:left!important;justify-content:flex-start!important;}
 .st-key-family_drawer button:hover {background:#425747!important;}
+/* Explicit paired colors override shared button styles in both themes. */
+.stApp.stApp.stApp .st-key-family_drawer [data-testid="stButton"] button,
+.stApp.stApp.stApp .st-key-family_drawer button {background:#303c32!important;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border:1px solid #688570!important;opacity:1!important;}
+.stApp.stApp.stApp .st-key-family_drawer button *,
+.stApp.stApp.stApp .st-key-family_drawer h3,
+.stApp.stApp.stApp .st-key-family_drawer h3 *,
+.stApp.stApp.stApp .st-key-family_drawer p {color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;opacity:1!important;}
+.stApp.stApp.stApp .st-key-family_drawer button:hover {background:#425747!important;}
+
+/* Pair foreground and background; outrank shared widget rules. */
+.stApp.stApp.stApp .st-key-family_drawer [data-testid="stButton"] button,
+.stApp.stApp.stApp .st-key-family_drawer button {background:#303c32!important;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border:1px solid #688570!important;opacity:1!important;}
+.stApp.stApp.stApp .st-key-family_drawer button *,
+.stApp.stApp.stApp .st-key-family_drawer h3,
+.stApp.stApp.stApp .st-key-family_drawer h3 *,
+.stApp.stApp.stApp .st-key-family_drawer p {color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;opacity:1!important;}
+.stApp.stApp.stApp .st-key-family_drawer button:hover {background:#425747!important;}
+/* Explicit paired colors override shared button styles in both themes. */
+.stApp.stApp.stApp .st-key-family_drawer [data-testid="stButton"] button,
+.stApp.stApp.stApp .st-key-family_drawer button {background:#303c32!important;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border:1px solid #688570!important;opacity:1!important;}
+.stApp.stApp.stApp .st-key-family_drawer button *,
+.stApp.stApp.stApp .st-key-family_drawer h3,
+.stApp.stApp.stApp .st-key-family_drawer h3 *,
+.stApp.stApp.stApp .st-key-family_drawer p {color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;opacity:1!important;}
+.stApp.stApp.stApp .st-key-family_drawer button:hover {background:#425747!important;}
+
+
 </style>""",unsafe_allow_html=True)
 if st.session_state.get('new_family_code'):
     st.session_state['family_invite_code']=st.session_state.pop('new_family_code')
