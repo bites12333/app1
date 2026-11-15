@@ -304,7 +304,7 @@ def entry_screen(store):
         family_name=st.text_input('새 가족 이름',value='우리 가족',max_chars=30)
         submitted=st.form_submit_button('입장하기 →',use_container_width=True)
     st.info('회원가입·비밀번호는 없어요. 가족 코드를 아는 사람은 참여할 수 있어요.')
-    st.caption('새로 접속하면 새 참여자로 들어와요. 같은 이름이어도 이전 참여자와 다른 사람으로 처리돼요. 이전 밭은 가족 밭에서 볼 수 있지만 삭제할 수는 없어요.')
+    st.caption('다시 입장하면 새 참여자예요. 이전 밭은 보기만 가능해요.')
     if submitted:
         if not name.strip():
             st.warning('부를 이름을 적어 주세요.');st.stop()
@@ -313,6 +313,7 @@ def entry_screen(store):
         invitation=family_call(store.signup,username,name,password,mode=='새 가족 만들기',family_name,code)
         st.session_state['family_token']=family_call(store.login,username,password)
         if invitation:st.session_state['new_family_code']=invitation
+        st.session_state['family_invite_code']=invitation or code.replace('-','').replace(' ','').upper()
         st.rerun()
     st.stop()
 
@@ -385,7 +386,7 @@ def family_farms_page():
     mine=[f for f in farms if f['owner_id']==ME['id']]
     others=[f for f in farms if f['owner_id']!=ME['id']]
     if not farms:
-        st.info('아직 밭이 없어요. 아래에서 첫 밭을 등록하세요.')
+        st.info('☰ 메뉴 → 내 밭 등록을 눌러 주세요.')
     for title,items in [('내 밭',mine),('가족의 밭',others)]:
         if items:
             st.markdown('### '+title)
@@ -403,11 +404,15 @@ def family_farms_page():
                 with cols[1]:
                     if st.button('이 밭 날씨 보기',key='weather_'+f['id'],use_container_width=True):
                         use_farm(f['id'],'날씨 변화·밭일 날짜')
-                if st.session_state.get('side_action')=='위치 보기':
+                if st.button('📍 위치 보기',key='map_'+f['id']):
+                    st.session_state['map_farm_id']=f['id']
+                if st.session_state.get('map_farm_id')==f['id']:
                     st.caption('읍·면·동 대표 지점이에요. 정확한 밭 경계가 아니에요.')
                     st.map(pd.DataFrame({'latitude':[f['latitude']],'longitude':[f['longitude']]}),zoom=10)
                 if f['owner_id']==ME['id']:
-                    if st.session_state.get('side_action')=='밭 지우기':
+                    if st.button('🗑️ 밭 지우기',key='ask_delete_'+f['id']):
+                        st.session_state['delete_farm_id']=f['id']
+                    if st.session_state.get('delete_farm_id')==f['id']:
                         checked=st.checkbox('이 밭 정보를 지울게요.',key='confirm_delete_'+f['id'])
                         if st.button('등록 삭제',key='delete_'+f['id'],disabled=not checked):
                             family_call(STORE.delete_farm,TOKEN,f['id'])
@@ -430,7 +435,7 @@ def family_farms_page():
                 st.success('밭을 등록했어요!')
                 st.rerun()
     if st.session_state.get('side_action')=='가족 설정 · 초대':
-        st.caption('이름: '+ME['nickname']+' · 아이디: '+ME['username'])
+        st.caption('이름: '+ME['nickname'])
         if ME['role']=='owner':
             st.write('코드를 잊었으면 새로 만들 수 있어요. 기존 가족의 로그인은 유지돼요.')
             confirm=st.checkbox('예전 초대 코드는 더 이상 쓸 수 없어요.',key='rotate_confirm')
@@ -439,7 +444,7 @@ def family_farms_page():
                 st.rerun()
         else:
             st.caption('다른 가족을 초대하려면 가족을 만든 사람에게 코드를 요청하세요.')
-        st.caption('밭 수정은 본인 밭 삭제 후 다시 등록하세요. 비밀번호 재설정·회원 탈퇴는 이 교육용 버전에 아직 없어요.')
+        st.caption('밭을 바꾸려면 지우고 다시 등록하세요.')
 
 
 @st.fragment(run_every=10)
@@ -495,11 +500,18 @@ if st.button('☰ 메뉴',key='open_family_menu'):
     st.session_state['menu_open']=not st.session_state.get('menu_open',False)
 side_action=st.session_state.get('side_action','기본 화면')
 if st.session_state.get('menu_open',False):
-    with st.container(border=True):
-        side_action=st.radio('가족 메뉴',['기본 화면','위치 보기','밭 지우기','내 밭 등록','가족 설정 · 초대','화면 설정'],key='side_action')
-        if side_action=='화면 설정':
-            st.radio('화면 테마',['밝게 ☀️','어둡게 🌙'],key='display_theme')
-        if st.button('첫 화면으로',key='family_logout'):
+    with st.container(key='family_drawer'):
+        st.markdown('### 🌱 우리가족 호미들')
+        if st.button('✕ 닫기',key='close_family_menu'):
+            st.session_state['menu_open']=False
+            st.rerun()
+        for label, action in [('🌾 내 밭 등록','내 밭 등록'),('🔑 가족 초대 코드','가족 초대 코드'),('🔠 글씨 크기','글씨 크기'),('◐ 화면 설정','화면 설정')]:
+            if st.button(label,key='drawer_'+action,use_container_width=True):
+                st.session_state['side_action']=action
+                st.session_state['menu_open']=False
+                if action=='기본 화면':st.session_state['pending_main_feature']='우리 밭'
+                st.rerun()
+        if st.button('🚪 나가기',key='family_logout'):
             family_call(STORE.logout,TOKEN)
             st.session_state.clear()
             st.rerun()
@@ -642,13 +654,48 @@ color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;font-size:19px
     st.markdown(css,unsafe_allow_html=True)
 
 render_design(dark)
-st.markdown('<header class="field-masthead"><div class="field-brand">우리가족 호미들</div><h1>우리가족 호미들</h1><p>밭을 기억하고, 날씨와 안부를 나눠요.</p></header>',unsafe_allow_html=True)
-if st.session_state.get('new_family_code'):
-    display_code(st.session_state['new_family_code'])
-    if st.button('코드를 따로 보관했어요'):
-        st.session_state.pop('new_family_code',None)
+font_size=24 if st.session_state.get('font_choice')=='더 크게' else 20
+st.markdown(f"""<style>
+.stApp.stApp.stApp p,.stApp.stApp.stApp li,.stApp.stApp.stApp label,.stApp.stApp.stApp input,.stApp.stApp.stApp textarea,.stApp.stApp.stApp select,.stApp.stApp.stApp [data-testid="stText"],.stApp.stApp.stApp [data-testid="stCaptionContainer"] p,.stApp.stApp.stApp [data-testid="stWidgetLabel"] p,.stApp.stApp.stApp button p {{font-size:{font_size}px!important;line-height:1.55!important;}}
+.stApp.stApp.stApp .st-key-family_nav button p {{font-size:{18 if font_size==24 else 16}px!important;}}
+</style>""",unsafe_allow_html=True)
+if side_action in ('가족 초대 코드','화면 설정','글씨 크기','내 밭 등록'):
+    if st.button('← 우리 밭',key='settings_back'):
+        st.session_state['side_action']='기본 화면'
+        st.session_state['pending_main_feature']='우리 밭'
         st.rerun()
-
+st.markdown('<header class="field-masthead"><div class="field-brand">우리가족 호미들</div><h1>우리가족 호미들</h1><p>밭을 기억하고, 날씨와 안부를 나눠요.</p></header>',unsafe_allow_html=True)
+st.markdown("""<style>
+.st-key-family_drawer {position:fixed!important;left:0!important;top:0!important;bottom:0!important;width:min(310px,86vw)!important;height:100dvh!important;z-index:999999!important;background:#202820!important;padding:24px 16px!important;overflow-y:auto!important;box-shadow:0 0 0 100vmax #0006!important;}
+.st-key-family_drawer h3,.st-key-family_drawer p {color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;}
+.st-key-family_drawer button {background:#303c32!important;border:0!important;border-radius:9px!important;min-height:52px!important;text-align:left!important;justify-content:flex-start!important;}
+.st-key-family_drawer button:hover {background:#425747!important;}
+</style>""",unsafe_allow_html=True)
+if st.session_state.get('new_family_code'):
+    st.session_state['family_invite_code']=st.session_state.pop('new_family_code')
+    if side_action!='가족 초대 코드':st.caption('초대 코드는 ☰ 메뉴에서 확인하세요.')
+if side_action=='가족 초대 코드':
+    st.subheader('🔑 가족 초대 코드')
+    invite=st.session_state.get('family_invite_code')
+    if invite:
+        st.code('-'.join(invite[i:i+4] for i in range(0,len(invite),4)),language=None)
+        st.caption('복사해서 가족에게 보내세요. 모르는 사람에게는 비밀!')
+    else:
+        st.caption('저장된 코드가 없어요. 가족에게 물어보세요.')
+    if ME['role']=='owner':
+        confirmed=st.checkbox('기존 코드는 사용할 수 없게 돼요.')
+        if st.button('새 코드 만들기',disabled=not confirmed,key='invite_rotate'):
+            st.session_state['family_invite_code']=family_call(STORE.rotate_code,TOKEN)
+            st.rerun()
+    st.stop()
+if side_action=='글씨 크기':
+    st.subheader('🔠 글씨 크기')
+    st.radio('읽기 편한 크기를 골라 주세요.',['크게','더 크게'],key='font_choice')
+    st.stop()
+if side_action=='화면 설정':
+    st.subheader('화면 설정')
+    st.radio('화면 테마',['밝게 ☀️','어둡게 🌙'],key='display_theme')
+    st.stop()
 
 if st.session_state.get('pending_main_feature'):
     st.session_state['main_feature'] = st.session_state.pop('pending_main_feature')
@@ -675,6 +722,7 @@ with st.container(key='family_nav'):
                 if st.button({'우리 밭':'🌱 우리 밭','작물 추천':'🥬 추천','날씨 변화·밭일 날짜':'🌤️ 날씨','가족 대화':'💬 대화'}[label],key='nav_'+label,use_container_width=True,
                              type='primary' if st.session_state['main_feature']==label else 'secondary'):
                     st.session_state['main_feature']=label
+                    st.session_state['side_action']='기본 화면'
                     st.rerun()
 view=st.session_state['main_feature']
 st.markdown('\n<style>\n.block-container{padding-bottom:130px!important;}\n.st-key-family_nav{position:fixed!important;bottom:0!important;left:0!important;right:0!important;width:100%!important;max-width:620px!important;margin:auto!important;z-index:999;background:var(--farm-surface,#fff)!important;border-top:1px solid #afc4b6;padding:10px 10px calc(10px + env(safe-area-inset-bottom))!important;box-sizing:border-box;box-shadow:0 -4px 18px #102a1615;}\n.st-key-family_nav [data-testid="stHorizontalBlock"]{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;gap:5px!important;}\n.st-key-family_nav [data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{width:25%!important;min-width:0!important;flex:1 1 0!important;}\n.st-key-family_nav button{padding:8px 2px!important;min-height:58px!important;}\n.st-key-family_nav button p{font-size:15px!important;}\n[data-testid="stSidebarCollapsedControl"]{display:block!important;visibility:visible!important;}\n[data-testid="stHeader"]{visibility:visible!important;}\n[data-testid="stSidebar"]{background:var(--farm-surface,#fff)!important;color:var(--farm-text,#163727)!important;}\n[data-testid="stSidebar"] p,[data-testid="stSidebar"] h1{color:var(--farm-text,#163727)!important;-webkit-text-fill-color:var(--farm-text,#163727)!important;}\n</style>\n',unsafe_allow_html=True)
@@ -1134,13 +1182,10 @@ if view == "작물 추천":
             if city.startswith('독도'): st.warning('독도는 해상 기후 참고용입니다. 실제 재배 판단에 사용하지 마세요.')
         st.caption("교육용 기후 비교입니다. 실제 재배 전 지역 농업기술센터에 확인하세요.")
 
-    with st.container(border=True):
-        st.write("검증된 농업 진단이 아닌 교육용 선별 기준입니다. 초기 14일(활착 참고)과 이후 기간을 나누되, 둘 다 같은 작물별 적정 평균기온 범위를 사용합니다. 발아·토양온도·정식 기준을 따로 검증한 모델이 아닙니다.")
-        st.write("비교 점수 = 100 × (초기 적합일 비중 × 0.4 + 이후 적합일 비중 × 0.6) × (1 − 저온·고온 중 큰 노출 비중 × 0.5). 실제 성공 확률이 아닙니다. 등급은 심한 위험을 우선 확인하므로 점수 순서와 등급 순서는 다를 수 있습니다.")
-        st.write("적합일 비중 = 초기 40% + 이후 60%. 유리: 적합일 비중 70% 이상이고 저온·고온 노출 각각 10% 미만. 불리: 적합일 비중 30% 미만이거나 저온 또는 고온 노출 30% 이상. 나머지는 주의입니다. 이 수치는 교육용 가정입니다. 같은 등급에서도 적합일과 위험 노출로 상대 비교합니다.")
-        st.write("비는 관수·배수 준비에만 사용하며 판정에서 제외합니다. 하우스 안에 실외 강수를 적용하지 않습니다. 시설은 입력한 기온 차이를 모든 날짜의 기온에 더하는 시나리오일 뿐 실제 보온·환기 효과 예측이 아닙니다. 광량·습도·토양·품종·병해충은 미반영입니다.")
-        st.write("장기 자료는 최근 5년 같은 날짜의 평균입니다. 실제 한파·폭염·연속 강우 위험은 과소평가할 수 있습니다. 날짜 비교는 같은 작물의 세 날짜에 한정합니다. 작물 기간은 단순화된 비교 구간이며 수확일 예측이 아닙니다.")
-        st.table(pd.DataFrame([{'작물':c[0],'비교일':c[1],'적정 평균기온':f'{c[2]}~{c[3]}℃','저온 주의':c[4],'고온 주의':c[5]} for c in CROPS]))
+    st.caption("날씨로 비교한 참고 점수예요. 실제 수확을 보장하지 않아요.")
+    details='검증된 농업 진단이 아닌 교육용 선별 기준입니다. 초기 14일(활착 참고)과 이후 기간을 나누되, 둘 다 같은 작물별 적정 평균기온 범위를 사용합니다. 발아·토양온도·정식 기준을 따로 검증한 모델이 아닙니다.\n\n비교 점수 = 100 × (초기 적합일 비중 × 0.4 + 이후 적합일 비중 × 0.6) × (1 − 저온·고온 중 큰 노출 비중 × 0.5). 실제 성공 확률이 아닙니다. 등급은 심한 위험을 우선 확인하므로 점수 순서와 등급 순서는 다를 수 있습니다.\n\n적합일 비중 = 초기 40% + 이후 60%. 유리: 적합일 비중 70% 이상이고 저온·고온 노출 각각 10% 미만. 불리: 적합일 비중 30% 미만이거나 저온 또는 고온 노출 30% 이상. 나머지는 주의입니다. 이 수치는 교육용 가정입니다. 같은 등급에서도 적합일과 위험 노출로 상대 비교합니다.\n\n비는 관수·배수 준비에만 사용하며 판정에서 제외합니다. 하우스 안에 실외 강수를 적용하지 않습니다. 시설은 입력한 기온 차이를 모든 날짜의 기온에 더하는 시나리오일 뿐 실제 보온·환기 효과 예측이 아닙니다. 광량·습도·토양·품종·병해충은 미반영입니다.\n\n장기 자료는 최근 5년 같은 날짜의 평균입니다. 실제 한파·폭염·연속 강우 위험은 과소평가할 수 있습니다. 날짜 비교는 같은 작물의 세 날짜에 한정합니다. 작물 기간은 단순화된 비교 구간이며 수확일 예측이 아닙니다.'
+    criteria=pd.DataFrame([{'작물':c[0],'비교일':c[1],'적정 평균기온':f'{c[2]}~{c[3]}℃','저온 주의':c[4],'고온 주의':c[5]} for c in CROPS])
+    st.download_button("비교 기준 받기",details+"\n\n"+criteria.to_csv(index=False),file_name="비교기준.txt")
     with st.container(border=True):
         st.caption("날씨 자료: Open-Meteo · 인터넷 연결 필요")
         st.markdown("[날씨 자료](https://open-meteo.com/) · [과거 기후](https://open-meteo.com/en/docs/historical-weather-api) · [농사로](https://www.nongsaro.go.kr/)")
@@ -1265,11 +1310,9 @@ else:
 
         st.download_button('결과 저장', '\n'.join(lines).encode('utf-8-sig'),file_name='농사날씨.txt',mime='text/plain')
     st.caption('작업 당일 예보와 밭 상태를 다시 확인하세요. 농약 살포 추천은 하지 않아요.')
-    with st.container(border=True):
-        st.write('Open-Meteo의 7일 일별 예보와 최근 5개 완결 연도의 같은 날짜 평균을 비교해요. 평년값(30년 평균)이나 올해의 실제 관측값은 아니에요.')
-        st.write('교육용 기준: 최저 0℃ 이하, 최고 33℃ 이상, 일최대 바람 8m/s 이상을 주의로 봐요. 밭일은 비 3mm 이상, 수확은 1mm 이상을 추가 주의로 봐요. 토양·작물·시간대별 조건을 반영하지 않으므로 작업 가능 여부를 보장하지 않아요.')
-        st.markdown('[날씨 자료: Open-Meteo](https://open-meteo.com/) · [자료 이용 조건](https://open-meteo.com/en/terms)')
-    st.caption('버전 13 · 다른 날씨 + 작업 날짜')
+    st.caption('7일 예보를 최근 5년 평균과 비교해요. 작업 전 다시 확인하세요.')
+    st.markdown('[날씨 자료·이용 조건](https://open-meteo.com/en/terms)')
+
 
 
 st.markdown("""<style>
