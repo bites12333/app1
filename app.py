@@ -378,6 +378,8 @@ def family_farms_page():
     import pandas as pd
     from datetime import datetime,timezone,timedelta
     st.subheader(ME['family_name']+'의 밭')
+    if st.session_state.pop('farm_deleted_notice',False):
+        st.success('밭 등록을 삭제했어요.')
     reports=family_call(STORE.latest_reports,TOKEN)
     if reports:
         with st.container(border=True):
@@ -415,10 +417,15 @@ def family_farms_page():
                     if st.button('🗑️ 밭 지우기',key='ask_delete_'+f['id']):
                         st.session_state['delete_farm_id']=f['id']
                     if st.session_state.get('delete_farm_id')==f['id']:
-                        checked=st.checkbox('이 밭 정보를 지울게요.',key='confirm_delete_'+f['id'])
-                        if st.button('등록 삭제',key='delete_'+f['id'],disabled=not checked):
+                        with st.form('delete_confirm_form_'+f['id']):
+                            st.write('이 밭의 등록 정보를 삭제할까요?')
+                            st.caption('삭제하면 되돌릴 수 없어요.')
+                            confirmed_delete=st.form_submit_button('등록 삭제',use_container_width=True)
+                        if confirmed_delete:
                             family_call(STORE.delete_farm,TOKEN,f['id'])
                             st.session_state.pop('analysis_farm_picker',None)
+                            st.session_state.pop('delete_farm_id',None)
+                            st.session_state['farm_deleted_notice']=True
                             st.rerun()
     if st.session_state.get('side_action')=='내 밭 등록':
         st.caption('등록한 위치와 작물은 가족 모두에게 보여요.')
