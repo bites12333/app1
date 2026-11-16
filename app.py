@@ -339,6 +339,8 @@ def use_farm(farm_id, destination=None):
     st.session_state['loaded_farm_id']=None
     st.session_state['analysis_farm_picker']=farm_id
     if destination:
+        st.session_state['side_action']='기본 화면'
+        st.session_state['family_menu_open']=False
         st.session_state['pending_main_feature']=destination
     st.rerun()
 
