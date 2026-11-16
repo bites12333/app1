@@ -212,8 +212,9 @@ class FamilyStore:
             point=node if town=='전체 (대표 지점)' else node['children'][town]
         except (KeyError,TypeError):
             raise FamilyInputError('밭 위치를 다시 선택하세요.')
-        if len(crops)>28 or any(c not in FAMILY_CROPS for c in crops):
-            raise FamilyInputError('작물 목록을 다시 선택하세요.')
+        crops=list(dict.fromkeys(c.strip() for c in crops if isinstance(c,str) and c.strip()))
+        if len(crops)>100 or any(len(c)>80 for c in crops):
+            raise FamilyInputError('작물은 100개까지, 이름은 각각 80자 이내로 적어 주세요.')
         farm_id=uuid.uuid4().hex
         with self.transaction() as q:
             user=self._user(q,token)
