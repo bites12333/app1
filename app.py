@@ -185,6 +185,15 @@ class FamilyStore:
         with self.transaction() as q:
             return self._user(q, token)
 
+    def change_nickname(self, token, nickname):
+        nickname=nickname.strip()
+        if not 1 <= len(nickname) <= 20:
+            raise FamilyInputError('이름은 1~20자로 적어 주세요.')
+        with self.transaction() as q:
+            user=self._user(q,token)
+            q('UPDATE family_users SET nickname=? WHERE id=?',(nickname,user['id']))
+        return nickname
+
     def logout(self, token):
         with self.transaction() as q:
             q('DELETE FROM family_sessions WHERE token_hash=?',(self.digest(token),))
@@ -523,8 +532,36 @@ if not ME:
 
 # Visible menu control does not depend on Streamlit's hidden sidebar toggle.
 st.markdown('<div style="font-size:26px;font-weight:800;color:var(--farm-text,#173b28)">우리가족 호미들</div>',unsafe_allow_html=True)
-if st.button('☰ 메뉴',key='open_family_menu'):
-    st.session_state['menu_open']=not st.session_state.get('menu_open',False)
+st.markdown("""<style>
+.st-key-profile_header [data-testid="stHorizontalBlock"]{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;gap:8px!important;}
+.st-key-profile_header [data-testid="stColumn"]{width:auto!important;min-width:0!important;flex:1 1 0!important;}
+.st-key-profile_header button{min-height:48px!important;width:100%!important;}
+</style>""",unsafe_allow_html=True)
+with st.container(key='profile_header'):
+    menu_col,profile_col=st.columns([1,1])
+    with menu_col:
+        if st.button('☰ 메뉴',key='open_family_menu',use_container_width=True):
+            st.session_state['menu_open']=not st.session_state.get('menu_open',False)
+    with profile_col:
+        if st.button('👤 내 이름',key='open_profile',use_container_width=True):
+            st.session_state['profile_open']=not st.session_state.get('profile_open',False)
+if st.session_state.get('profile_saved',False):
+    st.success('이름을 바꿨어요.')
+    st.session_state['profile_saved']=False
+if st.session_state.get('profile_open',False):
+    with st.container(border=True):
+        st.subheader('내 이름')
+        with st.form('nickname_form'):
+            nickname=st.text_input('가족에게 보이는 이름',value=ME['nickname'],max_chars=20)
+            if st.form_submit_button('이름 저장',use_container_width=True):
+                family_call(STORE.change_nickname,TOKEN,nickname)
+                st.session_state['profile_open']=False
+                st.session_state['profile_saved']=True
+                st.rerun()
+        st.caption('이름만 바뀌고 내 밭과 대화는 그대로예요.')
+        if st.button('닫기',key='close_profile'):
+            st.session_state['profile_open']=False
+            st.rerun()
 side_action=st.session_state.get('side_action','기본 화면')
 if st.session_state.get('menu_open',False):
     with st.container(key='family_drawer'):
@@ -676,6 +713,19 @@ color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;font-size:19px
 [data-testid="stColumn"] {width:100%!important;flex:1 1 100%!important;min-width:0!important;}
 }
 </style>"""
+    css=css.replace('</style>', """
+/* Contrast pairs for secondary text and metric badges, in both themes. */
+.stApp.stApp.stApp [data-testid="stCaptionContainer"],
+.stApp.stApp.stApp [data-testid="stCaptionContainer"] *,
+.stApp.stApp.stApp [data-testid="stMetricLabel"] * {
+color:INK!important;-webkit-text-fill-color:INK!important;opacity:1!important;}
+.stApp.stApp.stApp [data-testid="stMetricDelta"],
+.stApp.stApp.stApp [data-testid="stMetricDelta"] * {
+background:#123d2b!important;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;opacity:1!important;}
+.stApp.stApp.stApp [data-testid="stMetricDelta"] svg {fill:#ffffff!important;}
+.stApp.stApp.stApp input::placeholder,.stApp.stApp.stApp textarea::placeholder {
+color:MUTED!important;-webkit-text-fill-color:MUTED!important;opacity:1!important;}
+</style>""")
     for key,val in {"BG":palette["bg"],"SURFACE":palette["surface"],"INK":palette["text"],"MUTED":palette["muted"],"BORDER":palette["border"],"SOFT":palette["soft"],"RED":palette["red"],"SCHEME":"dark" if dark else "light","PHOTO":FIELD_PHOTO}.items():
         css=css.replace(key,val)
     st.markdown(css,unsafe_allow_html=True)
@@ -1193,13 +1243,13 @@ if view == "작물 추천":
         elif target['판정'] == '불리' or target['초기'] < .7 or target['생육'] < .7:
             actions.append("더 따뜻한 달을 골라 다시 비교하세요." if cold or mean < target_crop[2] else "더 서늘한 달을 골라 다시 비교하세요." if hot or mean > target_crop[3] else "다른 달을 골라 다시 비교하세요.")
         else:
-            actions.append("아래 키우는 방법을 확인하세요.")
+            actions.append(short_tips[0] if short_tips else "선택한 날짜에 심으세요.")
         for message in issues:
             st.markdown('<div class="red-advice">'+html.escape(message)+'</div>', unsafe_allow_html=True)
-        st.subheader("이렇게 하세요!")
+        st.subheader("지금 할 일")
         for message in actions[:1]:
             st.markdown('<div class="red-advice">'+html.escape(message)+'</div>', unsafe_allow_html=True)
-        st.caption("날씨로만 비교한 참고 결과예요. 실제로 심기 전에는 지역 농업기술센터에 확인하세요.")
+        st.caption("날씨 기준 참고예요. 토양·품종에 따라 달라요.")
         st.subheader("할 일")
         for tip in short_tips[:3]:
             st.write("**• " + tip + "**")
